@@ -1,0 +1,36 @@
+---
+description: How every Phoenician repo uses LLMs today
+alwaysApply: true
+---
+
+# Company LLM map
+
+Almost every AI app calls **cloud APIs directly**. `ai-router` is the only local-Brain proxy, and **no production caller is wired to it yet**.
+
+## Heavy AI (must keep working after local switch)
+
+| Repo | Inference | Search / grounding |
+|---|---|---|
+| `phoenician-intelligence` | Claude (`PI_DD` / `PI_CHATBOT`), Gemini, OpenAI, DeepSeek v4-flash, Perplexity, optional Grok | Anthropic `web_search_20250305`, Gemini GoogleSearch, DeepSeek `web_search`, Perplexity Sonar, Vertex/Gemini/AlphaSense RAG |
+| `phoenician-portfolio` | Claude Sonnet/Opus/Fable; optional DeepSeek `deepseek-v4-flash` | Anthropic web search in debate; DeepSeek path has **no** web search |
+| `capiq-screen-agent` | Claude, DeepSeek, GLM/Z.ai, OpenRouter Llama, OpenAI judges | Anthropic web search, Z.ai web search, Managed Memory/Dreams |
+| `screening-engine` | Claude, OpenAI, Gemini, Perplexity | Anthropic web search, Perplexity ingest, OpenAI embeddings + pgvector RAG |
+| `Earnings_tracker` | DeepSeek (`deepseek-v4-pro` / chat), Gemini | SerpAPI + Gemini Google Search grounding |
+
+## Light AI
+
+| Repo | Usage |
+|---|---|
+| `investor-portal-backend` | OpenAI `gpt-4o-mini`/`gpt-4o` admin PDF extraction only |
+| `Linker` | Optional Claude qualitative 0–40 score |
+| `dcf--app` | Gemini `gemini-3-flash-preview` + Google Search, client-side key |
+| `phoenician-intelligence-backend` | OpenAI TTS proxy + admin Claude for logs; no report generation |
+| `phoenician-intelligence-frontend` | OpenAI TTS + chatbot UI; no report LLM |
+
+## No LLM
+
+`pi-global`, `phoenician-frontend-kit`, `phoenician-mail-sender`, `Factsheet-Automation`, `phoenician-capital-website`, `investor-portal-web`, `investor-portal-mobile`, `investor-portal-backend-archive`, `dcf-app` (empty).
+
+## Shared keys / secrets
+
+`ANTHROPIC_API_KEY`, `PI_DD`, `PI_CHATBOT`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `PERPLEXITY_API_KEY`, `GEMINI_API_KEY`, `SERPAPI_KEY`, `TAVILY_API_KEY`, AWS secret `phoenician-ai-api-keys`.

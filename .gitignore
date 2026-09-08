@@ -10,3 +10,8 @@ node_modules/
 dist/
 .idea/
 .vscode/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+org-repos/

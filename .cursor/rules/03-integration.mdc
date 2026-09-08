@@ -1,0 +1,33 @@
+---
+description: How this search layer must plug into existing apps
+alwaysApply: true
+---
+
+# Integration contract
+
+Callers already speak **OpenAI chat-completions**. Do not invent a new protocol if an OpenAI-compatible or `phoenician_tools` extension will work.
+
+## First-class callers (in order)
+
+1. **`phoenician-intelligence`** — `src/services/llm_clients/call_deepseek.py`. Router docs say set `DEEPSEEK_BASE_URL=http://<host>:8080`. Today that constant is hardcoded to `https://api.deepseek.com`. Cheap workflow (`workflow_deepseek.py`) monkey-patches Claude/Gemini/Perplexity to DeepSeek; RAG stays Vertex/Gemini.
+2. **`ai-router`** — FastAPI on `:8080`, local vLLM Brains (`deepseek-v4-flash` only). Auth: `ROUTER_API_KEY`. No cloud LLM fallback. 503 if no Brain, 502 if the picked Brain dies (no retry).
+3. **`phoenician-portfolio`** — `strategy/deepseek.py` pins `deepseek-v4-flash`, OpenAI-compatible, `DEEPSEEK_BASE_URL`. Needs search for universe/debate once local.
+4. **`capiq-screen-agent`** — `backend/deepseek-screen.js`, `DEEPSEEK_ANTHROPIC_BASE_URL` / `DEEPSEEK_BASE_URL`.
+5. **`Earnings_tracker`** — DeepSeek OpenAI client + SerpAPI. Local model will need a replacement for SerpAPI ranking/extraction.
+6. **`screening-engine`** — `complete_with_search()` is Anthropic-native. Local path needs an equivalent.
+
+## Do
+
+- Keep request bodies OpenAI-compatible so apps only change base URL (and opt into tools).
+- Return raw labeled results the model can weigh — do not hide sources.
+- Fail closed when search is required; do not tell the model to hallucinate from training data.
+- Support fetch-and-extract, not snippets only.
+- Stay compatible with `phoenician_tools: ["web_search"]` or replace it cleanly so ai-router can delegate here.
+- Implement fetch+extract, not snippets only. Full spec: `.cursor/research/engine-bible.md`.
+
+## Do not
+
+- Add a second unused proxy beside ai-router without a clear split (inference vs search).
+- Depend on Anthropic/Perplexity/Gemini as the search backend if the goal is a local LLM.
+- Require LangChain/LangGraph. The company does not use them for inference.
+- Route `deepseek-v4-pro` to a Flash-only Brain without a dedicated Pro Brain.

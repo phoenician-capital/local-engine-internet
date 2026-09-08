@@ -1,0 +1,37 @@
+---
+description: How company apps search the internet today
+alwaysApply: true
+---
+
+# Search as it exists today
+
+Local DeepSeek has **no native web**. Every live research path is a cloud vendor tool or a paid search API.
+
+## Paths in production
+
+1. **Anthropic native tool** `web_search_20250305` — DD writing (`call_claude_writing_web`), screening analyst/memo, portfolio debate, CapIQ screen chat/auditor.
+2. **Perplexity Sonar** (`sonar-pro`, `sonar-deep-research`) — PI section prefetch, red flags, TAM, technicals, H2H, screening news/transcripts.
+3. **Gemini GoogleSearch** — PI `call_gemini_web`, Earnings news, `dcf--app`.
+4. **DeepSeek `web_search` tool** — PI cheap workflow only (`call_deepseek_writing_web`). Portfolio DeepSeek universe runs **cannot** search.
+5. **SerpAPI** — Earnings calendar/extraction, PI Trustpilot/Reddit/IR, ai-router `web_search`.
+6. **Tavily** — ai-router only. No other repo uses it.
+7. **Z.ai web_search** — capiq-screen-agent GLM desks.
+8. **RAG (not live web)** — PI Vertex / Gemini File Search / AlphaSense; screening-engine pgvector + OpenAI embeddings.
+
+## ai-router search (already built, barely used)
+
+`org-repos/ai-router/app/tools/web_search.py`
+
+- Opt-in: `"phoenician_tools": ["web_search"]` on `POST /chat/completions`
+- Runs SerpAPI + Tavily in parallel, returns title/snippet/link only
+- Max 3 tool rounds, 5 results/provider, no fetch, no ranking, no citations
+- Cannot combine with `stream: true`
+- If no keys: tells the model to answer from its own knowledge
+
+## Gaps this repo must close
+
+- No URL fetch / HTML extract / JS render anywhere in the local path
+- No local or self-hosted search index
+- Setting `DEEPSEEK_BASE_URL` to the router does **not** enable search — callers must send `phoenician_tools`
+- Screening, portfolio, CapIQ screen, Earnings, Linker, investor-portal never talk to ai-router
+- Cheap PI workflow keeps DCF on OpenAI/Claude; risk auditor Pass 1/3 already call DeepSeek despite env names

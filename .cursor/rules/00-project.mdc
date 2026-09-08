@@ -1,0 +1,19 @@
+---
+description: What this repo is and how to work in it
+alwaysApply: true
+---
+
+# local-engine-internet
+
+Internet search layer for Phoenician Capital local LLMs. Local DeepSeek Brains cannot search the web. This repo will give every company app a reliable search engine so they can leave cloud models without losing research quality.
+
+- Local clones of every `phoenician-capital` repo live in `org-repos/` (gitignored). Read them. Do not commit them here.
+- The existing inference proxy is `org-repos/ai-router`. It already has a thin `web_search` tool (SerpAPI + Tavily snippets, max 3 rounds, no page fetch). This project must be better than that — not a second unused router.
+- First-pass map: `.cursor/research/llm-audit.md`
+- Second-pass logic (every call/fallback): `.cursor/research/logic-00-index.md`
+- Third-pass usage (every repo, purpose + fail policy): `.cursor/research/logic-05-third-pass-usage.md`
+- External search/data APIs (SerpAPI, Tavily, FMP, CapIQ…): `.cursor/research/logic-06-external-apis.md`
+- **Build this product against:** `.cursor/research/engine-bible.md` + `.cursor/research/engine-surgical.md`
+- Company LLM map: `.cursor/rules/01-company-llm.mdc`
+- Search patterns today: `.cursor/rules/02-search-today.mdc`
+- Integration contract: `.cursor/rules/03-integration.mdc`

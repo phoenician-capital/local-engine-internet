@@ -1,0 +1,38 @@
+{
+  "organic_results": [
+    {
+      "title": "Acme Q2 2026 earnings",
+      "snippet": "Acme reported Q2 2026 revenue of $1.2B.",
+      "link": "https://ir.acme.com/q2-2026",
+      "position": 1,
+      "date": "Aug 1, 2026"
+    },
+    {
+      "title": "Duplicate snippet host",
+      "snippet": "Acme reported Q2 2026 revenue of $1.2B.",
+      "link": "https://news.example.com/acme",
+      "position": 2
+    },
+    {
+      "title": "Same URL later",
+      "snippet": "Different text",
+      "link": "https://ir.acme.com/q2-2026",
+      "position": 3
+    }
+  ],
+  "answer_box": {
+    "answer": "Acme Q2 2026 earnings date is August 1, 2026",
+    "link": "https://ir.acme.com/calendar"
+  },
+  "knowledge_graph": {
+    "title": "Acme Corp",
+    "description": "Industrial conglomerate",
+    "link": "https://www.acme.com",
+    "attributes": [{"value": "NYSE: ACME"}]
+  },
+  "related_questions": [
+    {"question": "When is Acme earnings?", "snippet": "August 1", "link": "https://a.example/1"},
+    {"question": "What was Acme revenue?", "snippet": "$1.2B", "link": "https://a.example/2"},
+    {"question": "Should be dropped", "snippet": "third", "link": "https://a.example/3"}
+  ]
+}
