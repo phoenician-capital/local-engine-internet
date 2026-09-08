@@ -9,7 +9,15 @@ ProviderName = Literal["serpapi", "brave", "tavily", "searxng", "google_cse"]
 HitKind = Literal["organic", "answer_box", "knowledge_graph", "related_question"]
 
 ALL_PROVIDERS: tuple[str, ...] = ("serpapi", "brave", "tavily", "searxng", "google_cse")
-DEFAULT_FANOUT: tuple[str, ...] = ("brave", "serpapi", "tavily", "searxng")
+# Fan-out order = blend order. Google fidelity first, then Tavily excerpts, then independent indexes.
+DEFAULT_FANOUT: tuple[str, ...] = ("serpapi", "tavily", "brave", "searxng")
+PROVIDER_PRIORITY: dict[str, int] = {
+    "serpapi": 0,
+    "tavily": 1,
+    "brave": 2,
+    "google_cse": 3,
+    "searxng": 4,
+}
 
 
 @dataclass
@@ -22,6 +30,7 @@ class Hit:
     position: int = 0
     date: Optional[str] = None
     query: str = ""
+    also_from: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

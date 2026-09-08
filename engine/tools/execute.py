@@ -130,10 +130,12 @@ class ToolExecutor:
         search_text = await self.web_search(query)
         if search_text.startswith("ERROR:"):
             return search_text
-        hits = (self.last_outcome.hits if self.last_outcome else []) 
+        hits = list(self.last_outcome.hits if self.last_outcome else [])
+        organics = [h for h in hits if h.url and h.kind == "organic"]
+        organics.sort(key=lambda h: (0 if h.also_from else 1))
         urls: list[str] = []
-        for hit in hits:
-            if hit.url and hit.url not in urls and hit.kind == "organic":
+        for hit in organics:
+            if hit.url not in urls:
                 urls.append(hit.url)
             if len(urls) >= n:
                 break

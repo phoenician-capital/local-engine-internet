@@ -91,6 +91,8 @@ class Settings:
     searxng_url: str = (os.getenv("SEARXNG_URL") or "").rstrip("/")
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
     google_search_engine_id: str = os.getenv("GOOGLE_SEARCH_ENGINE_ID", "")
+    tavily_search_depth: str = (os.getenv("TAVILY_SEARCH_DEPTH") or "advanced").strip().lower()
+    search_provider_retries: int = _int_env("SEARCH_PROVIDER_RETRIES", 1)
 
     fetch_mode: str = os.getenv("FETCH_MODE", "full").lower()
     max_tool_rounds: int = _int_env("MAX_TOOL_ROUNDS", 6)

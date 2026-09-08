@@ -97,10 +97,19 @@ async def _handle_chat(request: Request) -> JSONResponse | StreamingResponse:
         except httpx.HTTPStatusError as exc:
             raise HTTPException(
                 status_code=502,
-                detail=f"Upstream LLM failed: HTTP {exc.response.status_code}",
+                detail=(
+                    f"Upstream LLM failed: HTTP {exc.response.status_code}. "
+                    "Point UPSTREAM_LLM_BASE_URL at ai-router or any OpenAI-compatible host."
+                ),
             ) from exc
         except httpx.RequestError as exc:
-            raise HTTPException(status_code=502, detail=f"Upstream LLM unreachable: {exc}") from exc
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Upstream LLM unreachable ({exc}). Search still works at POST /v1/search. "
+                    "Set UPSTREAM_LLM_BASE_URL (default http://127.0.0.1:8080) for chat."
+                ),
+            ) from exc
 
         result = dict(loop.response)
         if loop.trace:

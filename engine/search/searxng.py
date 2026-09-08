@@ -8,6 +8,7 @@ import httpx
 
 from ..config import settings
 from .base import Hit
+from .httputil import request_json
 
 logger = logging.getLogger("engine.search.searxng")
 
@@ -47,12 +48,22 @@ async def search(
         "q": query,
         "format": "json",
         "categories": "general",
+        "language": "en",
     }
-    resp = await client.get(
+    if recency_days:
+        if recency_days <= 1:
+            params["time_range"] = "day"
+        elif recency_days <= 7:
+            params["time_range"] = "week"
+        elif recency_days <= 31:
+            params["time_range"] = "month"
+        else:
+            params["time_range"] = "year"
+    payload = await request_json(
+        client,
+        "GET",
         f"{settings.searxng_url}/search",
         params=params,
-        timeout=settings.search_provider_timeout,
     )
-    resp.raise_for_status()
-    hits = parse_searxng_payload(resp.json(), query=query)
+    hits = parse_searxng_payload(payload, query=query)
     return hits[:num_results]

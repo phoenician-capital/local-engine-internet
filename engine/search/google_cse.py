@@ -8,6 +8,7 @@ import httpx
 
 from ..config import settings
 from .base import Hit
+from .httputil import request_json
 
 logger = logging.getLogger("engine.search.google_cse")
 
@@ -44,15 +45,20 @@ async def search(
 ) -> list[Hit]:
     if not enabled():
         raise RuntimeError("GOOGLE_API_KEY + GOOGLE_SEARCH_ENGINE_ID are not configured")
-    resp = await client.get(
+    payload = await request_json(
+        client,
+        "GET",
         CSE_URL,
+        timeout=max(settings.search_provider_timeout, 20.0),
         params={
             "key": settings.google_api_key,
             "cx": settings.google_search_engine_id,
             "q": query,
             "num": min(int(num_results), 10),
         },
-        timeout=max(settings.search_provider_timeout, 20.0),
     )
-    resp.raise_for_status()
-    return parse_cse_payload(resp.json(), query=query)
+    err = payload.get("error")
+    if err:
+        message = err.get("message") if isinstance(err, dict) else err
+        raise RuntimeError(str(message))
+    return parse_cse_payload(payload, query=query)

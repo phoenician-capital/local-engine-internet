@@ -10,8 +10,9 @@ WEB_SEARCH_SCHEMA = {
     "function": {
         "name": WEB_SEARCH_NAME,
         "description": (
-            "Search the web across multiple providers and return the raw results "
-            "(title, snippet, link, source). Results are not pre-filtered — "
+            "Search the web across every configured provider (SerpAPI / Tavily / "
+            "Brave / SearXNG) in parallel. Hits are blended — URLs seen by more "
+            "than one provider are marked [also …]. Results are not pre-filtered — "
             "weigh and cross-check them yourself. Use this when facts may have "
             "changed, need sources, or you do not already have a URL to read."
         ),

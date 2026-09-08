@@ -18,6 +18,18 @@ def test_welcome_lists_try_curls(client):
     assert "/v1/search" in body["try"]["search"]
     assert "SERPAPI_KEY" in (body["hint"] or "")
     assert "check_search.py" in body["try"]["check"]
+    assert body["connect"]["openai_base_url"].endswith("/v1")
+    assert "openai_python" in body["connect"]["snippets"]
+
+
+def test_openai_models_list(client):
+    resp = client.get("/v1/models")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["object"] == "list"
+    assert body["data"][0]["id"]
+    assert client.get("/models").status_code == 200
+    assert client.get("/v1").json()["openai_base_url"].endswith("/v1")
 
 
 def test_capabilities_lists_vllm_flags(client):

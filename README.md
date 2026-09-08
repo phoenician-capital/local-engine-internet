@@ -1,46 +1,96 @@
 # local-engine-internet
 
-Internet search + fetch layer for Phoenician Capital local LLMs.
+Internet search + fetch for Phoenician Capital local LLMs. Other apps plug in by changing a base URL — no new protocol.
 
-Local DeepSeek Brains (vLLM `deepseek-v4-flash` behind `ai-router`) cannot search or read the web. Cloud models do that today via vendor tools (Anthropic `web_search_20250305`, Gemini GoogleSearch, Perplexity Sonar, DeepSeek cloud `web_search`). This service is the replacement so apps can point at a local Brain without losing research quality.
+Inference stays on `ai-router`. This service is internet only (`:8090`).
 
-Inference stays on `ai-router`. This repo is internet only.
+## Install (for any teammate)
 
-## Quick start
-
-You only need a **SerpAPI** key. No Brain, no Brave, no Tavily.
+You need Python 3.12 and at least one search key. **SerpAPI alone is enough.** Tavily and Brave join automatically when you paste their keys.
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
+git clone https://github.com/phoenician-capital/local-engine-internet.git
+cd local-engine-internet
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-
 cp .env.example .env
-# paste SERPAPI_KEY=... into .env  (that one line is enough)
+```
 
+Open `.env` and set `SERPAPI_KEY=...`. Optionally also `TAVILY_API_KEY` and `BRAVE_API_KEY`. Then:
+
+```bash
 python -m engine
 ```
 
-In another terminal:
+In a second terminal, from the same repo with the venv on:
 
 ```bash
 python scripts/check_search.py
 ```
 
-Or by hand:
+You are done when that prints `check_search ok` and `GET http://127.0.0.1:8090/` shows `search_ready: true`. Interactive API: http://127.0.0.1:8090/docs
+
+**Docker (closest to a one-command plugin):**
 
 ```bash
-curl -s http://127.0.0.1:8090/
-curl -s http://127.0.0.1:8090/v1/search \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"Phoenician Capital","num_results":5}'
+cp .env.example .env    # paste SERPAPI_KEY
+docker compose up --build
 ```
 
-`GET /` prints the same curls with `search_ready: true` once the key is loaded. Interactive docs: http://127.0.0.1:8090/docs
+```bash
+# even shorter, from the repo:
+sh scripts/install.sh
+python -m engine setup    # creates .env if missing, prints plug-in snippets
+python -m engine          # start
+python -m engine check    # live search test
+```
 
-Playwright is **not** required for search. Install Chromium only if you set `FETCH_MODE=full` and need JS-heavy IR pages.
+Search does **not** need a Brain or Playwright. Chat-with-search (Mode 2) needs `UPSTREAM_LLM_BASE_URL` pointing at ai-router **or any OpenAI-compatible LLM**.
 
-Mode 2 (the model decides to search) also needs `ai-router` on `:8080` plus the vLLM flags below. Search itself does not.
+## Plug into your LLM
+
+This is an OpenAI-compatible server. Other people do **not** install a plugin inside Cursor/Claude — they change the **base URL** of the client they already have. Search tools are injected automatically (`policy: auto`). No `phoenician_tools` field required.
+
+We serve both URL shapes because clients disagree:
+
+| Client | Set this |
+|---|---|
+| OpenAI Python / Node, Cursor, Continue, Open WebUI, LiteLLM | `http://127.0.0.1:8090/v1` |
+| DeepSeek official SDK / PI `DEEPSEEK_BASE_URL` | `http://127.0.0.1:8090` |
+| Raw search (no LLM) | `POST http://127.0.0.1:8090/v1/search` |
+
+`GET /v1/models` is implemented (Cursor / Open WebUI probe this first). `GET /` and `GET /v1` print the same snippets.
+
+**OpenAI Python**
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://127.0.0.1:8090/v1", api_key="local")
+print(client.chat.completions.create(
+    model="deepseek-v4-flash",
+    messages=[{"role": "user", "content": "What did Nvidia report last quarter?"}],
+).choices[0].message.content)
+```
+
+**Environment (any OpenAI-compatible app)**
+
+```bash
+export OPENAI_BASE_URL=http://127.0.0.1:8090/v1
+export OPENAI_API_KEY=local
+export DEEPSEEK_BASE_URL=http://127.0.0.1:8090
+```
+
+**Cursor** — Settings → Models → OpenAI-compatible → Base URL `http://127.0.0.1:8090/v1`, API key `local`, model `deepseek-v4-flash`.
+
+**Continue.dev** — `provider: openai`, `apiBase: http://127.0.0.1:8090/v1`, `useLegacyCompletionsEndpoint: false`.
+
+**LiteLLM** — `api_base: http://127.0.0.1:8090/v1`, `model: openai/deepseek-v4-flash`.
+
+Chat needs a Brain (or another OpenAI-compatible upstream) at `UPSTREAM_LLM_BASE_URL`. If that host is down, chat returns 502 with a hint; **search still works**.
+
+---
+
+Local DeepSeek Brains cannot search the web. Cloud models do that today via vendor tools (Anthropic `web_search_20250305`, Gemini GoogleSearch, Perplexity Sonar, DeepSeek cloud `web_search`). This service is the replacement.
 
 ## Mode 1 vs Mode 2
 
@@ -150,19 +200,27 @@ GET  /search?q=&engine=google&num=
 
 ## Search providers
 
-Enabled by key presence. Nothing else changes when you add a key later.
+Every configured provider runs **in parallel**. Results are blended, not first-wins.
 
-| Provider | Env | Role |
+| Provider | Env | Role in the mix |
 |---|---|---|
-| Brave | `BRAVE_API_KEY` | Default fan-out — independent, cheap |
-| SerpAPI | `SERPAPI_KEY` (or `SERPAPI_API_KEY`) | Google fidelity, `site:` / `filetype:`, `answer_box` / knowledge graph / related questions |
-| Tavily | `TAVILY_API_KEY` | Extra snippets (port of ai-router) |
+| SerpAPI | `SERPAPI_KEY` | Google rank, `site:` / `filetype:`, answer box, knowledge graph, related questions, news |
+| Tavily | `TAVILY_API_KEY` | Longer excerpts. Same URL keeps Google as the source and Tavily’s text if it is longer |
+| Brave | `BRAVE_API_KEY` | Independent index, extra snippets, news |
 | SearXNG | `SEARXNG_URL` | Optional self-hosted |
-| Google CSE | `GOOGLE_API_KEY` + `GOOGLE_SEARCH_ENGINE_ID` | PI official-website fallback; pin via `providers` |
+| Google CSE | `GOOGLE_API_KEY` + `GOOGLE_SEARCH_ENGINE_ID` | Pin-only official-site fallback — **not** in the default mix |
 
-Default agentic fan-out: Brave + SerpAPI + Tavily + SearXNG (whichever are configured), in parallel. Per-provider timeout 15s. One provider failing is skipped. **All failing is an error**, not degraded prose.
+**Best set:** SerpAPI + Tavily + Brave. SerpAPI alone is enough to start. CSE is skip unless you have a working Custom Search project (a suspended consumer key returns 403).
 
-Hits keep `source` visible. Dedup is by canonical URL then `snippet[:120]`.
+Blend rules:
+
+1. Fan-out all configured default providers at once (15s each, one retry on 429/5xx).
+2. Same URL from two providers → one hit: SerpAPI source wins, Tavily snippet wins if it is meaningfully longer, `also_from` lists the others.
+3. Organic list is **round-robin** (SerpAPI, Tavily, Brave, SearXNG) so one index cannot fill all 8 slots.
+4. Cross-confirmed URLs go first. `search_and_read` fetches those first.
+5. One provider failing is skipped. **All failing is an error**, not degraded prose.
+
+`GET /search` still pins SerpAPI when that key exists (Earnings / EP drop-in). `POST /v1/search` and the model tools always mix.
 
 ## Fetch ladder
 
@@ -220,9 +278,11 @@ Auth: `Authorization: Bearer $ENGINE_API_KEY`. Unset = open (local use, same as 
 | `UPSTREAM_LLM_BASE_URL` | `http://127.0.0.1:8080` | ai-router |
 | `UPSTREAM_API_KEY` | empty | Forwarded as Bearer; alias `ROUTER_API_KEY` |
 | `UPSTREAM_MODEL` | `deepseek-v4-flash` | Default model field |
-| `SERPAPI_KEY` | | Google SERP — **this is enough to search** |
-| `BRAVE_API_KEY` | | Brave Search |
-| `TAVILY_API_KEY` | | Tavily |
+| `SERPAPI_KEY` | | Google SERP — enough alone; best as the Google slot in the mix |
+| `TAVILY_API_KEY` | | Longer excerpts (joins the mix when set) |
+| `BRAVE_API_KEY` | | Independent index + news |
+| `TAVILY_SEARCH_DEPTH` | `advanced` | `basic` or `advanced` |
+| `SEARCH_PROVIDER_RETRIES` | `1` | Extra try on 429 / 5xx / timeout per provider |
 | `SEARXNG_URL` | | Self-hosted SearXNG |
 | `GOOGLE_API_KEY` + `GOOGLE_SEARCH_ENGINE_ID` | | CSE (pin-only; skip if the project is suspended) |
 | `FETCH_MODE` | `full` | `full` / `no_browser` / `httpx_only`. Example env defaults to `no_browser`. |
@@ -251,7 +311,7 @@ Do not route `deepseek-v4-pro` to a Flash-only Brain.
 
 ```bash
 pytest
-# Mode 1 live (SerpAPI only — engine optional):
+# Mode 1 live (whatever keys are in .env — engine optional):
 python scripts/check_search.py
 # Mode 2 live (needs a running engine + router + Brain tool-call flags):
 python scripts/smoke.py

@@ -10,6 +10,7 @@ import httpx
 
 from ..config import settings
 from .base import Hit
+from .httputil import request_json
 from .query import serpapi_tbs_for_recency
 
 logger = logging.getLogger("engine.search.serpapi")
@@ -96,6 +97,25 @@ def parse_serpapi_payload(payload: dict[str, Any], query: str = "") -> list[Hit]
                 )
             )
 
+    for i, result in enumerate((payload.get("news_results") or [])[:2], start=50):
+        url = result.get("link") or ""
+        snippet = result.get("snippet") or ""
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        hits.append(
+            Hit(
+                title=result.get("title") or "",
+                url=url,
+                snippet=snippet,
+                source=NAME,
+                kind="organic",
+                position=i,
+                date=result.get("date"),
+                query=query,
+            )
+        )
+
     for question in (payload.get("related_questions") or [])[:2]:
         q = question.get("question") or ""
         snippet = question.get("snippet") or ""
@@ -158,13 +178,7 @@ async def search(
     tbs = serpapi_tbs_for_recency(recency_days)
     if tbs:
         params["tbs"] = tbs
-    resp = await client.get(
-        SERPAPI_URL,
-        params=params,
-        timeout=settings.search_provider_timeout,
-    )
-    resp.raise_for_status()
-    payload = resp.json()
+    payload = await request_json(client, "GET", SERPAPI_URL, params=params)
     err = payload.get("error")
     if err:
         raise RuntimeError(str(err))

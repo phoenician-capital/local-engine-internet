@@ -19,6 +19,7 @@ from .agent.loop import run_canary
 from .api.chat import router as chat_router
 from .api.compat import router as compat_router
 from .api.health import router as health_router
+from .api.openai_compat import router as openai_compat_router
 from .api.primitives import router as primitives_router
 from .auth import require_engine_key
 from .config import VLLM_REQUIRED_FLAGS, settings
@@ -98,10 +99,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-if settings.cors_allowed_origins:
+_cors = list(settings.cors_allowed_origins)
+if not _cors and not settings.engine_api_key:
+    # Local unauthenticated use — browser UIs (Open WebUI, etc.) can attach.
+    _cors = ["*"]
+if _cors:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_allowed_origins,
+        allow_origins=_cors,
         allow_credentials=False,
         allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type", "X-Priority"],
@@ -109,6 +114,7 @@ if settings.cors_allowed_origins:
 
 _auth = [Depends(require_engine_key)]
 app.include_router(health_router)
+app.include_router(openai_compat_router)
 app.include_router(chat_router, dependencies=_auth)
 app.include_router(primitives_router, dependencies=_auth)
 app.include_router(compat_router, dependencies=_auth)

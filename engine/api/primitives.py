@@ -83,6 +83,7 @@ async def v1_search(req: SearchRequest) -> dict[str, Any]:
         "hits": [h.to_dict() for h in outcome.hits],
         "providers_used": outcome.providers_used,
         "errors": outcome.errors,
+        "confirmed": [h.url for h in outcome.hits if h.also_from],
     }
 
 

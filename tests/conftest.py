@@ -27,6 +27,8 @@ def _reset_settings():
         "max_fetches": settings.max_fetches,
         "max_tool_rounds": settings.max_tool_rounds,
         "web_context_budget_chars": settings.web_context_budget_chars,
+        "search_provider_retries": settings.search_provider_retries,
+        "tavily_search_depth": settings.tavily_search_depth,
     }
     settings.engine_api_key = ""
     settings.serpapi_key = ""
@@ -41,6 +43,8 @@ def _reset_settings():
     settings.serpapi_pace_seconds = 0.0
     settings.run_canary_on_startup = False
     settings.thin_html_char_threshold = 400
+    settings.search_provider_retries = 0
+    settings.tavily_search_depth = "basic"
     _PROCESS_CACHE.clear()
     yield
     for key, value in original.items():

@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import httpx
 
-from ..config import DomainMode, parse_domain_mode, settings
+from ..config import DomainMode, parse_domain_mode
 from ..errors import SearchUnavailable, fail_closed_search
 from ..fetch.policy import host_denied
 from ..metrics import SEARCH_TOTAL
@@ -15,6 +15,7 @@ from . import brave, google_cse, searxng, serpapi, tavily
 from .base import (
     ALL_PROVIDERS,
     DEFAULT_FANOUT,
+    PROVIDER_PRIORITY,
     Hit,
     SearchOutcome,
     canonical_url,
@@ -62,24 +63,110 @@ def resolve_providers(requested: Optional[list[str]]) -> list[str]:
     return [p for p in DEFAULT_FANOUT if p in configured]
 
 
+def _merge_organic(a: Hit, b: Hit) -> Hit:
+    """Same URL from two providers: keep Google as source, take the longer snippet."""
+    ra = PROVIDER_PRIORITY.get(a.source, 50)
+    rb = PROVIDER_PRIORITY.get(b.source, 50)
+    primary, other = (a, b) if ra <= rb else (b, a)
+    snippet = primary.snippet or ""
+    other_snip = other.snippet or ""
+    if len(other_snip) >= len(snippet) + 40:
+        snippet = other_snip
+    also: list[str] = []
+    for src in list(primary.also_from) + [other.source] + list(other.also_from):
+        if src and src != primary.source and src not in also:
+            also.append(src)
+    return Hit(
+        title=primary.title or other.title,
+        url=primary.url or other.url,
+        snippet=snippet,
+        source=primary.source,
+        kind="organic",
+        position=primary.position or other.position,
+        date=primary.date or other.date,
+        query=primary.query or other.query,
+        also_from=also,
+    )
+
+
+def collapse_organics(hits: list[Hit]) -> list[Hit]:
+    """Merge duplicate organic URLs; leave answer_box / KG / related intact."""
+    by_url: dict[str, Hit] = {}
+    no_url: list[Hit] = []
+    specials: list[Hit] = []
+    for hit in hits:
+        if hit.kind != "organic":
+            specials.append(hit)
+            continue
+        key = canonical_url(hit.url) if hit.url else ""
+        if not key:
+            no_url.append(hit)
+            continue
+        existing = by_url.get(key)
+        by_url[key] = _merge_organic(existing, hit) if existing else hit
+    return list(by_url.values()) + no_url + specials
+
+
 def dedup_hits(hits: list[Hit]) -> list[Hit]:
-    """Dedup by canonical URL then snippet[:120]. Keep first (source stays visible)."""
+    """Collapse same-URL organics, then drop near-identical snippets."""
+    collapsed = collapse_organics(hits)
     out: list[Hit] = []
     seen_urls: set[str] = set()
     seen_snippets: set[str] = set()
-    for hit in hits:
+    for hit in collapsed:
         url_key = canonical_url(hit.url) if hit.url else ""
         snip = snippet_key(hit)
-        if url_key and url_key in seen_urls:
-            continue
-        if snip and snip in seen_snippets:
-            continue
-        if url_key:
+        if hit.kind == "organic":
+            if url_key and url_key in seen_urls:
+                continue
+            if snip and snip in seen_snippets:
+                continue
+        else:
+            special_key = f"{hit.kind}:{url_key or snip}"
+            if special_key in seen_snippets:
+                continue
+            seen_snippets.add(special_key)
+        if url_key and hit.kind == "organic":
             seen_urls.add(url_key)
-        if snip:
+        if snip and hit.kind == "organic":
             seen_snippets.add(snip)
         out.append(hit)
     return out
+
+
+def blend_organics(organics: list[Hit], num_results: int) -> list[Hit]:
+    """Round-robin across providers. Cross-confirmed URLs go first."""
+    limit = max(int(num_results), 1)
+    if not organics:
+        return []
+
+    confirmed: dict[str, list[Hit]] = {}
+    unique: dict[str, list[Hit]] = {}
+    for hit in organics:
+        bucket = confirmed if hit.also_from else unique
+        bucket.setdefault(hit.source, []).append(hit)
+    for group in list(confirmed.values()) + list(unique.values()):
+        group.sort(key=lambda h: h.position or 99)
+
+    def _rr(pools: dict[str, list[Hit]], room: int) -> list[Hit]:
+        if room <= 0:
+            return []
+        order = [p for p in DEFAULT_FANOUT if pools.get(p)]
+        order.extend(p for p in pools if p not in order and pools[p])
+        picked: list[Hit] = []
+        i = 0
+        while len(picked) < room and any(pools[p] for p in order):
+            src = order[i % len(order)]
+            i += 1
+            if not pools[src]:
+                continue
+            picked.append(pools[src].pop(0))
+        return picked
+
+    out = _rr(confirmed, limit)
+    if len(out) < limit:
+        out.extend(_rr(unique, limit - len(out)))
+    return out[:limit]
 
 
 def apply_domain_mode(hits: list[Hit], domain_mode: DomainMode) -> list[Hit]:
@@ -161,10 +248,7 @@ async def run_search(
         )
 
     merged = apply_domain_mode(dedup_hits(collected), mode)
-    outcome.hits = merged[: max(int(num_results), 1) * 4] if merged else []
-    # Keep extra kinds even if we cap organics — answer_box / KG are small and useful.
-    # Re-slice more carefully: take organics up to num_results, always keep specials.
-    organics = [h for h in merged if h.kind == "organic"][:num_results]
+    organics = blend_organics([h for h in merged if h.kind == "organic"], num_results)
     specials = [h for h in merged if h.kind != "organic"]
     outcome.hits = organics + specials
 
@@ -192,7 +276,8 @@ def format_hits_for_model(query: str, outcome: SearchOutcome) -> str:
         lines.append(f"[{label}]")
         for i, hit in enumerate(group, 1):
             date = f" ({hit.date})" if hit.date else ""
-            lines.append(f"{i}. {hit.title}{date}")
+            also = f"  [also {', '.join(hit.also_from)}]" if hit.also_from else ""
+            lines.append(f"{i}. {hit.title}{date}{also}")
             if hit.snippet:
                 lines.append(f"   {hit.snippet}")
             if hit.url:

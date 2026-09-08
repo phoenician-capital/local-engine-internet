@@ -6,6 +6,7 @@ from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from ..config import VLLM_REQUIRED_FLAGS, settings
+from ..connect import connection_info
 from ..runtime import capabilities
 from ..search.merge import configured_providers
 
@@ -20,11 +21,19 @@ def _search_ready() -> bool:
 async def root() -> dict:
     """One-screen usage for humans and other engineers."""
     providers = configured_providers()
+    connect = connection_info()
     return {
         "service": "local-engine-internet",
         "search_ready": _search_ready(),
         "providers": providers,
         "docs": "/docs",
+        "connect": {
+            "openai_base_url": connect["openai_base_url"],
+            "deepseek_base_url": connect["openai_base_url_no_v1"],
+            "model": connect["model"],
+            "api_key": connect["api_key"],
+            "snippets": connect["snippets"],
+        },
         "try": {
             "search": (
                 f"curl -s http://127.0.0.1:{settings.port}/v1/search "
@@ -42,7 +51,7 @@ async def root() -> dict:
         "hint": (
             None
             if providers
-            else "Set SERPAPI_KEY in .env and restart. That single key is enough to search."
+            else "Set SERPAPI_KEY in .env and restart. Add TAVILY_API_KEY and BRAVE_API_KEY for the full mix."
         ),
     }
 

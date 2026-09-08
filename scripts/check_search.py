@@ -29,8 +29,13 @@ def _engine_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {key}"} if key else {}
 
 
-def _has_serpapi() -> bool:
-    return bool((os.getenv("SERPAPI_KEY") or os.getenv("SERPAPI_API_KEY") or "").strip())
+def _has_any_search_key() -> bool:
+    return bool(
+        (os.getenv("SERPAPI_KEY") or os.getenv("SERPAPI_API_KEY") or "").strip()
+        or (os.getenv("TAVILY_API_KEY") or "").strip()
+        or (os.getenv("BRAVE_API_KEY") or "").strip()
+        or (os.getenv("SEARXNG_URL") or "").strip()
+    )
 
 
 def _summarize_hits(hits: list[dict]) -> None:
@@ -40,7 +45,9 @@ def _summarize_hits(hits: list[dict]) -> None:
         url = hit.get("url") or hit.get("link") or ""
         source = hit.get("source") or "serpapi"
         kind = hit.get("kind") or "organic"
-        print(f"  - [{source}:{kind}] {title}")
+        also = hit.get("also_from") or []
+        extra = f"  [also {', '.join(also)}]" if also else ""
+        print(f"  - [{source}:{kind}] {title}{extra}")
         if url:
             print(f"    {url}")
 
@@ -67,14 +74,18 @@ def check_via_engine() -> bool:
             search = client.post(
                 f"{ENGINE_URL}/v1/search",
                 headers=headers,
-                json={"query": QUERY, "num_results": 5, "providers": ["serpapi"]},
+                json={"query": QUERY, "num_results": 8},
             )
             if search.status_code != 200:
                 print(f"FAIL: POST /v1/search HTTP {search.status_code}", file=sys.stderr)
                 print(search.text[:400], file=sys.stderr)
                 return False
             body = search.json()
-            print(f"POST /v1/search  query={QUERY!r}  providers_used={body.get('providers_used')}")
+            print(
+                f"POST /v1/search  query={QUERY!r}  "
+                f"providers_used={body.get('providers_used')}  "
+                f"confirmed={len(body.get('confirmed') or [])}"
+            )
             _summarize_hits(body.get("hits") or [])
             if not body.get("hits"):
                 print("FAIL: search returned zero hits", file=sys.stderr)
@@ -110,26 +121,24 @@ def check_via_engine() -> bool:
 
 
 def check_direct() -> bool:
-    if not _has_serpapi():
-        print("FAIL: SERPAPI_KEY is not set. Copy .env.example to .env and paste the key.", file=sys.stderr)
+    if not _has_any_search_key():
+        print(
+            "FAIL: no search key. Set SERPAPI_KEY (enough alone), then TAVILY_API_KEY and BRAVE_API_KEY.",
+            file=sys.stderr,
+        )
         return False
-    # Import after dotenv so engine.config sees the key.
     sys.path.insert(0, str(ROOT))
     from engine.config import settings
     from engine.search.merge import run_search
 
-    if not settings.serpapi_key:
-        settings.serpapi_key = (os.getenv("SERPAPI_KEY") or os.getenv("SERPAPI_API_KEY") or "").strip()
+    settings.serpapi_key = (os.getenv("SERPAPI_KEY") or os.getenv("SERPAPI_API_KEY") or settings.serpapi_key or "").strip()
+    settings.tavily_api_key = (os.getenv("TAVILY_API_KEY") or settings.tavily_api_key or "").strip()
+    settings.brave_api_key = (os.getenv("BRAVE_API_KEY") or settings.brave_api_key or "").strip()
 
     async def _run() -> int:
         async with httpx.AsyncClient() as client:
-            outcome = await run_search(
-                client,
-                QUERY,
-                num_results=5,
-                providers=["serpapi"],
-            )
-            print("direct SerpAPI (engine not required)")
+            outcome = await run_search(client, QUERY, num_results=8)
+            print("direct mix (engine not required)")
             print(f"  providers_used: {outcome.providers_used}")
             _summarize_hits([h.to_dict() for h in outcome.hits])
             return len(outcome.hits)
@@ -139,10 +148,10 @@ def check_direct() -> bool:
     try:
         n = asyncio.run(_run())
     except Exception as exc:
-        print(f"FAIL: SerpAPI call failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print(f"FAIL: search failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return False
     if n <= 0:
-        print("FAIL: SerpAPI returned zero hits", file=sys.stderr)
+        print("FAIL: search returned zero hits", file=sys.stderr)
         return False
     return True
 
@@ -168,7 +177,7 @@ def main() -> int:
             ok = check_direct()
 
     if ok:
-        print("check_search ok — Mode 1 search works with SerpAPI")
+        print("check_search ok — Mode 1 search mix works")
         return 0
     return 1
 

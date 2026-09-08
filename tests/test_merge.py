@@ -5,8 +5,45 @@ from httpx import Response
 from engine.config import DomainMode, settings
 from engine.errors import SearchUnavailable
 from engine.search.base import Hit
-from engine.search.merge import apply_domain_mode, dedup_hits, format_hits_for_model, run_search
+from engine.search.merge import (
+    apply_domain_mode,
+    blend_organics,
+    collapse_organics,
+    dedup_hits,
+    format_hits_for_model,
+    run_search,
+)
 from engine.search.serpapi import SERPAPI_URL
+
+
+def test_collapse_keeps_google_source_and_longer_tavily_snippet():
+    short = Hit("A", "https://acme.com/page", "short google blurb", "serpapi", position=1)
+    long = Hit(
+        "A2",
+        "https://www.acme.com/page/",
+        "this tavily excerpt is intentionally much longer than the google snippet",
+        "tavily",
+        position=3,
+    )
+    out = collapse_organics([long, short])
+    assert len(out) == 1
+    assert out[0].source == "serpapi"
+    assert out[0].also_from == ["tavily"]
+    assert "intentionally much longer" in out[0].snippet
+
+
+def test_blend_interleaves_providers_and_promotes_confirmed():
+    hits = [
+        Hit("S1", "https://s1.example", "a", "serpapi", position=1),
+        Hit("S2", "https://s2.example", "b", "serpapi", position=2),
+        Hit("T1", "https://t1.example", "c", "tavily", position=1),
+        Hit("T2", "https://t2.example", "d", "tavily", position=2),
+        Hit("Both", "https://both.example", "e", "serpapi", position=1, also_from=["tavily"]),
+    ]
+    blended = blend_organics(hits, 4)
+    assert blended[0].url == "https://both.example"
+    sources = [h.source for h in blended[1:]]
+    assert "serpapi" in sources and "tavily" in sources
 
 
 def test_dedup_by_canonical_url_and_snippet():
