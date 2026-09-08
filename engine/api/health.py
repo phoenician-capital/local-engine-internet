@@ -12,12 +12,49 @@ from ..search.merge import configured_providers
 router = APIRouter()
 
 
+def _search_ready() -> bool:
+    return bool(configured_providers())
+
+
+@router.get("/")
+async def root() -> dict:
+    """One-screen usage for humans and other engineers."""
+    providers = configured_providers()
+    return {
+        "service": "local-engine-internet",
+        "search_ready": _search_ready(),
+        "providers": providers,
+        "docs": "/docs",
+        "try": {
+            "search": (
+                f"curl -s http://127.0.0.1:{settings.port}/v1/search "
+                "-H 'Content-Type: application/json' "
+                '-d \'{"query":"Phoenician Capital"}\''
+            ),
+            "compat": f"curl -s 'http://127.0.0.1:{settings.port}/search?q=Phoenician+Capital&num=5'",
+            "fetch": (
+                f"curl -s http://127.0.0.1:{settings.port}/v1/fetch "
+                "-H 'Content-Type: application/json' "
+                '-d \'{"url":"https://example.com"}\''
+            ),
+            "check": "python scripts/check_search.py",
+        },
+        "hint": (
+            None
+            if providers
+            else "Set SERPAPI_KEY in .env and restart. That single key is enough to search."
+        ),
+    }
+
+
 @router.get("/health")
 async def health() -> dict:
+    providers = configured_providers()
     return {
         "status": "ok",
+        "search_ready": bool(providers),
         "upstream": settings.upstream_llm_base_url,
-        "providers_configured": configured_providers(),
+        "providers_configured": providers,
         "fetch_mode": settings.fetch_mode,
     }
 
@@ -41,5 +78,6 @@ async def get_capabilities() -> dict:
             for name in ("serpapi", "brave", "tavily", "searxng", "google_cse")
         },
         "vllm_required_flags": list(VLLM_REQUIRED_FLAGS),
+        "search_ready": _search_ready(),
         "tools": ["web_search", "fetch_url", "search_and_read"],
     }

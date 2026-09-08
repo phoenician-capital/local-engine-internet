@@ -45,6 +45,33 @@ def test_general_research_drops_social_only():
     assert [h.url for h in kept] == ["https://reuters.com/article"]
 
 
+async def test_pin_unconfigured_provider_is_clear():
+    settings.serpapi_key = "k"
+    async with httpx.AsyncClient() as client:
+        try:
+            await run_search(client, "q", providers=["brave"])
+            assert False, "expected SearchUnavailable"
+        except SearchUnavailable as exc:
+            assert "brave" in exc.message
+            assert "not configured" in exc.message
+            assert "own knowledge" not in exc.message.lower()
+
+
+@respx.mock
+async def test_serpapi_json_error_is_provider_failure():
+    settings.serpapi_key = "k"
+    respx.get(SERPAPI_URL).mock(
+        return_value=Response(200, json={"error": "Invalid API key."})
+    )
+    async with httpx.AsyncClient() as client:
+        try:
+            await run_search(client, "q")
+            assert False, "expected SearchUnavailable"
+        except SearchUnavailable as exc:
+            assert "every configured provider failed" in exc.message
+            assert "own knowledge" not in exc.message.lower()
+
+
 @respx.mock
 async def test_all_providers_fail_raises():
     settings.serpapi_key = "k"

@@ -66,7 +66,7 @@ def hits_to_serpapi_shape(outcome: SearchOutcome) -> dict[str, Any]:
 
 @router.get("/search")
 async def serpapi_compat(
-    q: str = Query(..., description="Search query"),
+    q: str = Query(..., min_length=1, description="Search query"),
     engine: str = Query("google"),
     num: int = Query(10, ge=1, le=20),
     api_key: Optional[str] = Query(default=None),

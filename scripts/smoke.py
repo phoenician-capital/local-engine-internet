@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Live smoke against a running engine + router + one search key.
+"""Live Mode 2 smoke against a running engine + router + Brain.
+
+For Mode 1 search only (SerpAPI, no Brain), use scripts/check_search.py.
+
 
   ENGINE_URL=http://127.0.0.1:8090 ENGINE_API_KEY=... python scripts/smoke.py
 

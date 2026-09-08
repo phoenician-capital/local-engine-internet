@@ -3,8 +3,24 @@ import respx
 from httpx import Response
 
 from engine.config import settings
-from engine.fetch.ladder import fetch_url, looks_like_pdf
+from engine.fetch.ladder import fetch_url, looks_like_decoded_text, looks_like_pdf
+from engine.fetch.policy import supported_accept_encoding
 from engine.fetch.sec import extract_sec_exhibit_urls
+
+
+def test_accept_encoding_only_advertises_decodable():
+    encodings = supported_accept_encoding()
+    assert "gzip" in encodings
+    try:
+        import brotli  # noqa: F401
+        assert "br" in encodings
+    except ImportError:
+        assert "br" not in encodings
+
+
+def test_looks_like_decoded_text_rejects_binary():
+    assert looks_like_decoded_text("<html><title>Example Domain</title></html>")
+    assert not looks_like_decoded_text("\x1b.\x02j{SdgYE\x17|[")
 
 
 def test_looks_like_pdf_magic_and_rejects_html_disguised():

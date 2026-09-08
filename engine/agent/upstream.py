@@ -34,6 +34,7 @@ async def post_completion(
     client: httpx.AsyncClient,
     body: dict[str, Any],
     incoming_headers: dict[str, str] | None = None,
+    timeout: float | None = None,
 ) -> dict[str, Any]:
     headers = auth_headers(incoming_headers or {})
     # Forward X-Priority unchanged (ai-router reads it).
@@ -41,7 +42,7 @@ async def post_completion(
         completions_url(),
         json=body,
         headers=headers,
-        timeout=settings.request_timeout,
+        timeout=timeout if timeout is not None else settings.request_timeout,
     )
     resp.raise_for_status()
     return resp.json()

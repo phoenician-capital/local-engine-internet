@@ -107,11 +107,31 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/122.0 Safari/537.36"
 )
 
+
+def supported_accept_encoding() -> str:
+    """Only advertise encodings this process can actually decode.
+
+    Chrome-like ``br`` without the brotli package leaves httpx holding
+    compressed bytes, which then get treated as page text.
+    """
+    encodings = ["gzip", "deflate"]
+    try:
+        import brotli  # noqa: F401
+        encodings.append("br")
+    except ImportError:
+        try:
+            import brotlicffi  # noqa: F401
+            encodings.append("br")
+        except ImportError:
+            pass
+    return ", ".join(encodings)
+
+
 DEFAULT_HEADERS = {
     "User-Agent": USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.5",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Encoding": supported_accept_encoding(),
     "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
     "Sec-Fetch-Dest": "document",

@@ -218,7 +218,9 @@ async def run_canary(client: httpx.AsyncClient) -> dict[str, Any]:
         "stream": False,
     }
     try:
-        response = await post_completion(client, body, {})
+        response = await post_completion(
+            client, body, {}, timeout=settings.canary_timeout_seconds
+        )
     except Exception as exc:
         return {
             "brain_tool_calls_supported": False,

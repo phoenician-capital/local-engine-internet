@@ -6,9 +6,8 @@ import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from ..config import settings
 from ..errors import SearchUnavailable
 from ..fetch.ladder import fetch_url
 from ..metrics import REQUESTS_TOTAL
@@ -21,12 +20,20 @@ router = APIRouter()
 
 
 class SearchRequest(BaseModel):
-    query: str
+    query: str = Field(..., min_length=1)
     num_results: int = Field(default=8, ge=1, le=20)
     providers: Optional[list[str]] = None
     domain_mode: str = "general_research"
     recency_days: Optional[int] = None
     on_empty: str = "empty"
+
+    @field_validator("query")
+    @classmethod
+    def _strip_query(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("query must not be empty")
+        return value
 
 
 class FetchRequest(BaseModel):
@@ -37,13 +44,21 @@ class FetchRequest(BaseModel):
 
 
 class ResearchRequest(BaseModel):
-    query: str
+    query: str = Field(..., min_length=1)
     fetch_top: int = Field(default=3, ge=1, le=8)
     max_chars_per_page: int = Field(default=8000, ge=200, le=50_000)
     num_results: int = Field(default=8, ge=1, le=20)
     providers: Optional[list[str]] = None
     domain_mode: str = "general_research"
     recency_days: Optional[int] = None
+
+    @field_validator("query")
+    @classmethod
+    def _strip_query(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("query must not be empty")
+        return value
 
 
 @router.post("/v1/search")

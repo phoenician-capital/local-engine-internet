@@ -6,6 +6,42 @@ Local DeepSeek Brains (vLLM `deepseek-v4-flash` behind `ai-router`) cannot searc
 
 Inference stays on `ai-router`. This repo is internet only.
 
+## Quick start
+
+You only need a **SerpAPI** key. No Brain, no Brave, no Tavily.
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+
+cp .env.example .env
+# paste SERPAPI_KEY=... into .env  (that one line is enough)
+
+python -m engine
+```
+
+In another terminal:
+
+```bash
+python scripts/check_search.py
+```
+
+Or by hand:
+
+```bash
+curl -s http://127.0.0.1:8090/
+curl -s http://127.0.0.1:8090/v1/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"Phoenician Capital","num_results":5}'
+```
+
+`GET /` prints the same curls with `search_ready: true` once the key is loaded. Interactive docs: http://127.0.0.1:8090/docs
+
+Playwright is **not** required for search. Install Chromium only if you set `FETCH_MODE=full` and need JS-heavy IR pages.
+
+Mode 2 (the model decides to search) also needs `ai-router` on `:8080` plus the vLLM flags below. Search itself does not.
+
 ## Mode 1 vs Mode 2
 
 There are two ways the org touches the internet. They stay separate in code and in the API.
@@ -132,7 +168,7 @@ Hits keep `source` visible. Dedup is by canonical URL then `snippet[:120]`.
 
 Port of `Earnings_tracker/tracker/summary/fetch.py`:
 
-1. **httpx** with Chrome-like headers + age-gate cookies
+1. **httpx** with Chrome-like headers + age-gate cookies (`brotli` is required so `Content-Encoding: br` pages decode)
 2. On WAF statuses `{401,403,406,409,429,503}` or bot-challenge markers → **curl_cffi** `impersonate="chrome"`
 3. Thin HTML (<400 chars) or IR-looking URL → **Playwright** (expanders / tabs / EN+JP+PL labels / spinner wait / `data-pdf` harvest)
 4. **PDF** chain: pdfplumber → PyMuPDF → pypdf → pdftotext → regex
@@ -158,27 +194,22 @@ Default for Mode 1 `/v1/search` is `on_empty: empty`. Set `on_empty: error` to 5
 
 ## Run
 
+Same as Quick start: `python -m engine` (reads `.env`, binds `:8090`). Equivalent: `uvicorn engine.main:app --host 0.0.0.0 --port 8090`.
+
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
 playwright install chromium   # only if FETCH_MODE=full
-
-cp .env.example .env
-# set UPSTREAM_LLM_BASE_URL and at least one search key
-
-uvicorn engine.main:app --host 0.0.0.0 --port 8090
 ```
 
-Docker (Chromium + poppler):
+Docker (Chromium + poppler). Copy `.env.example` to `.env` first if you want keys loaded:
 
 ```bash
+cp .env.example .env   # then set SERPAPI_KEY
 docker compose up --build
 # optional self-hosted search:
 docker compose --profile searxng up
 ```
 
-Auth: `Authorization: Bearer $ENGINE_API_KEY`. Unset = open (local dev, same as ai-router). `GET /search` also accepts `api_key=` for SerpAPI drop-in.
+Auth: `Authorization: Bearer $ENGINE_API_KEY`. Unset = open (local use, same as ai-router). `GET /search` also accepts `api_key=` for SerpAPI drop-in.
 
 ## Environment
 
@@ -189,12 +220,12 @@ Auth: `Authorization: Bearer $ENGINE_API_KEY`. Unset = open (local dev, same as 
 | `UPSTREAM_LLM_BASE_URL` | `http://127.0.0.1:8080` | ai-router |
 | `UPSTREAM_API_KEY` | empty | Forwarded as Bearer; alias `ROUTER_API_KEY` |
 | `UPSTREAM_MODEL` | `deepseek-v4-flash` | Default model field |
-| `SERPAPI_KEY` | | Google SERP |
+| `SERPAPI_KEY` | | Google SERP — **this is enough to search** |
 | `BRAVE_API_KEY` | | Brave Search |
 | `TAVILY_API_KEY` | | Tavily |
 | `SEARXNG_URL` | | Self-hosted SearXNG |
-| `GOOGLE_API_KEY` + `GOOGLE_SEARCH_ENGINE_ID` | | CSE |
-| `FETCH_MODE` | `full` | `full` / `no_browser` / `httpx_only` |
+| `GOOGLE_API_KEY` + `GOOGLE_SEARCH_ENGINE_ID` | | CSE (pin-only; skip if the project is suspended) |
+| `FETCH_MODE` | `full` | `full` / `no_browser` / `httpx_only`. Example env defaults to `no_browser`. |
 | `MAX_TOOL_ROUNDS` | `6` | Router's 3 is too low once fetch is a tool |
 | `MAX_SEARCH_USES` / `MAX_FETCHES` | `8` / `8` | Per-request caps |
 | `WEB_CONTEXT_BUDGET_CHARS` | `150000` | PI per-section web inject |
@@ -203,7 +234,8 @@ Auth: `Authorization: Bearer $ENGINE_API_KEY`. Unset = open (local dev, same as 
 | `REQUEST_TIMEOUT` | `300` | Upstream LLM |
 | `SEC_EDGAR_USER_AGENT` | LocalEngineInternet/1.0 + phoeniciancapital.com | Required by EDGAR |
 | `DEFAULT_WEB_POLICY` | `auto` | `auto` / `required` / `off` |
-| `RUN_CANARY_ON_STARTUP` | `true` | Brain tool-call probe |
+| `RUN_CANARY_ON_STARTUP` | `true` | Brain tool-call probe (background, does not block search) |
+| `CANARY_TIMEOUT_SECONDS` | `5` | How long the probe waits for ai-router |
 
 ## Wiring other repos (later, not in this repo)
 
@@ -219,7 +251,9 @@ Do not route `deepseek-v4-pro` to a Flash-only Brain.
 
 ```bash
 pytest
-# live (needs a running engine + router + one search key):
+# Mode 1 live (SerpAPI only — engine optional):
+python scripts/check_search.py
+# Mode 2 live (needs a running engine + router + Brain tool-call flags):
 python scripts/smoke.py
 ```
 

@@ -165,4 +165,7 @@ async def search(
     )
     resp.raise_for_status()
     payload = resp.json()
+    err = payload.get("error")
+    if err:
+        raise RuntimeError(str(err))
     return parse_serpapi_payload(payload, query=query), extras_from_payload(payload)

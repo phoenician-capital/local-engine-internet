@@ -44,6 +44,19 @@ def resolve_providers(requested: Optional[list[str]]) -> list[str]:
         if unknown:
             logger.warning("unknown search providers requested: %s", unknown)
         pinned = [p for p in wanted if p in configured]
+        if wanted and not pinned:
+            raise SearchUnavailable(
+                fail_closed_search(
+                    f"requested providers {wanted} are not configured "
+                    f"(configured: {sorted(configured) or 'none'})"
+                )
+            )
+        if requested and not wanted:
+            raise SearchUnavailable(
+                fail_closed_search(
+                    f"unknown search providers: {unknown}; known: {list(ALL_PROVIDERS)}"
+                )
+            )
         return pinned
     # CSE is pin-only (official-site fallback), not part of the default fan-out.
     return [p for p in DEFAULT_FANOUT if p in configured]

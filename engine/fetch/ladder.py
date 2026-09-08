@@ -71,6 +71,17 @@ class Page:
         return asdict(self)
 
 
+def looks_like_decoded_text(text: str) -> bool:
+    """Reject brotli/gzip bodies that were never decompressed."""
+    if not text:
+        return True
+    sample = text[:500]
+    if "\x00" in sample:
+        return False
+    printable = sum(1 for ch in sample if ch.isprintable() or ch in "\n\r\t")
+    return (printable / len(sample)) >= 0.85
+
+
 def looks_like_pdf(content_type: str, body: bytes, url: str) -> bool:
     if body and body[:5].startswith(b"%PDF"):
         return True
@@ -387,23 +398,31 @@ async def _fetch_uncached(
         blocked = True
 
     if not blocked and body:
-        if is_sec_wrapper_url(url) and ("htm" in url.lower() or "html" in ctype.lower()):
-            text, is_pdf, resolved = await handle_sec(client, body.decode("utf-8", errors="ignore"), str(final_url))
-            if text:
-                text = _cap_text(text, is_pdf, max_chars)
-                return _ok_page(url, resolved, resolved.rsplit("/", 1)[-1], text, ctype, is_pdf, "sec")
-        page = _page_from_bytes(url, final_url, body, ctype, "httpx", max_chars)
-        thin = (not page.is_pdf) and len(page.text) < settings.thin_html_char_threshold
-        if not thin:
+        preview = body.decode("utf-8", errors="ignore")
+        if not looks_like_pdf(ctype, body, url) and not looks_like_decoded_text(preview):
+            logger.warning(
+                "undecodable body for %s — install brotli if the site sent Content-Encoding: br",
+                url[:80],
+            )
+            blocked = True
+        else:
+            if is_sec_wrapper_url(url) and ("htm" in url.lower() or "html" in ctype.lower()):
+                text, is_pdf, resolved = await handle_sec(client, preview, str(final_url))
+                if text:
+                    text = _cap_text(text, is_pdf, max_chars)
+                    return _ok_page(url, resolved, resolved.rsplit("/", 1)[-1], text, ctype, is_pdf, "sec")
+            page = _page_from_bytes(url, final_url, body, ctype, "httpx", max_chars)
+            thin = (not page.is_pdf) and len(page.text) < settings.thin_html_char_threshold
+            if not thin:
+                return page
+            # Thin HTML — escalate to Playwright when allowed.
+            if mode is FetchMode.FULL:
+                rendered = await playwright_fetch(url)
+                if rendered:
+                    _c, html, rbody, final = rendered
+                    if html and len(html_to_text(html)) > len(page.text):
+                        return _page_from_bytes(url, final, rbody, "text/html", "playwright", max_chars)
             return page
-        # Thin HTML — escalate to Playwright when allowed.
-        if mode is FetchMode.FULL:
-            rendered = await playwright_fetch(url)
-            if rendered:
-                _c, html, rbody, final = rendered
-                if html and len(html_to_text(html)) > len(page.text):
-                    return _page_from_bytes(url, final, rbody, "text/html", "playwright", max_chars)
-        return page
 
     # --- Tier 2: curl_cffi ---
     if mode is not FetchMode.HTTPX_ONLY:

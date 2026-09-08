@@ -6,6 +6,7 @@ raw /v1/search /v1/fetch /v1/research for pipelines that already decided.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -31,6 +32,23 @@ logging.basicConfig(
 logger = logging.getLogger("engine")
 
 
+async def _run_canary_safe() -> None:
+    if runtime.http_client is None:
+        return
+    try:
+        runtime.capabilities.update(await run_canary(runtime.http_client))
+    except Exception as exc:
+        runtime.capabilities["canary_error"] = f"{type(exc).__name__}: {exc}"
+    if not runtime.capabilities.get("brain_tool_calls_supported"):
+        logger.warning(
+            "Brain tool-call canary failed (%s). Required vLLM flags: %s",
+            runtime.capabilities.get("canary_error"),
+            " ".join(VLLM_REQUIRED_FLAGS),
+        )
+    else:
+        logger.info("Brain tool-call canary passed")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     runtime.http_client = httpx.AsyncClient(
@@ -42,33 +60,33 @@ async def lifespan(_app: FastAPI):
         ttl_seconds=settings.fetch_cache_ttl,
         failure_ttl_seconds=settings.fetch_cache_failure_ttl,
     )
+    providers = configured_providers()
     runtime.capabilities = {
         "brain_tool_calls_supported": False,
-        "canary_error": "canary not run",
-        "providers": {name: True for name in configured_providers()},
+        "canary_error": "canary not run" if settings.run_canary_on_startup else "canary disabled",
+        "providers": {name: True for name in providers},
     }
     logger.info(
         "local-engine-internet listening on %s:%d — upstream=%s providers=%s fetch_mode=%s",
         settings.host,
         settings.port,
         settings.upstream_llm_base_url,
-        configured_providers() or ["(none)"],
+        providers or ["(none — set SERPAPI_KEY)"],
         settings.fetch_mode,
     )
+    if not providers:
+        logger.warning("No search provider configured. Set SERPAPI_KEY in .env — that is enough to search.")
+    canary_task = None
     if settings.run_canary_on_startup:
-        try:
-            runtime.capabilities.update(await run_canary(runtime.http_client))
-        except Exception as exc:
-            runtime.capabilities["canary_error"] = f"{type(exc).__name__}: {exc}"
-        if not runtime.capabilities.get("brain_tool_calls_supported"):
-            logger.warning(
-                "Brain tool-call canary failed (%s). Required vLLM flags: %s",
-                runtime.capabilities.get("canary_error"),
-                " ".join(VLLM_REQUIRED_FLAGS),
-            )
-        else:
-            logger.info("Brain tool-call canary passed")
+        # Do not block listen on a missing Brain (canary uses a short timeout).
+        canary_task = asyncio.create_task(_run_canary_safe())
     yield
+    if canary_task is not None:
+        canary_task.cancel()
+        try:
+            await canary_task
+        except (asyncio.CancelledError, Exception):
+            pass
     if runtime.http_client is not None:
         await runtime.http_client.aclose()
         runtime.http_client = None

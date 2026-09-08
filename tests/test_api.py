@@ -7,14 +7,27 @@ def test_health(client):
     body = resp.json()
     assert body["status"] == "ok"
     assert "providers_configured" in body
+    assert body["search_ready"] is False
+
+
+def test_welcome_lists_try_curls(client):
+    resp = client.get("/")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["search_ready"] is False
+    assert "/v1/search" in body["try"]["search"]
+    assert "SERPAPI_KEY" in (body["hint"] or "")
+    assert "check_search.py" in body["try"]["check"]
 
 
 def test_capabilities_lists_vllm_flags(client):
     resp = client.get("/capabilities")
     assert resp.status_code == 200
-    flags = resp.json()["vllm_required_flags"]
+    body = resp.json()
+    flags = body["vllm_required_flags"]
     assert "--tool-call-parser deepseek_v4" in flags
     assert "--enable-auto-tool-choice" in flags
+    assert body["search_ready"] is False
 
 
 def test_stream_plus_tools_rejected(client):
@@ -42,6 +55,11 @@ def test_auth_required_when_key_set(client):
     )
     # 502 — no providers configured — means auth passed
     assert resp.status_code == 502
+
+
+def test_empty_search_query_is_400(client):
+    resp = client.post("/v1/search", json={"query": "   "})
+    assert resp.status_code == 422
 
 
 def test_search_compat_accepts_api_key_query(client):

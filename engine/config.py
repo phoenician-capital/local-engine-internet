@@ -118,6 +118,7 @@ class Settings:
     default_domain_mode: str = os.getenv("DEFAULT_DOMAIN_MODE", "general_research")
     default_web_policy: str = os.getenv("DEFAULT_WEB_POLICY", "auto")
     run_canary_on_startup: bool = _bool_env("RUN_CANARY_ON_STARTUP", True)
+    canary_timeout_seconds: float = _float_env("CANARY_TIMEOUT_SECONDS", 5.0)
     cors_allowed_origins: list[str] = field(
         default_factory=lambda: [
             o.strip()
