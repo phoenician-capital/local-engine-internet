@@ -119,6 +119,8 @@ class Settings:
     )
     default_domain_mode: str = os.getenv("DEFAULT_DOMAIN_MODE", "general_research")
     default_web_policy: str = os.getenv("DEFAULT_WEB_POLICY", "auto")
+    # Layer 1 master switch. Layer 2 is default_web_policy (auto = the model decides).
+    plugin_enabled: bool = _bool_env("PLUGIN_ENABLED", True)
     run_canary_on_startup: bool = _bool_env("RUN_CANARY_ON_STARTUP", True)
     canary_timeout_seconds: float = _float_env("CANARY_TIMEOUT_SECONDS", 5.0)
     cors_allowed_origins: list[str] = field(

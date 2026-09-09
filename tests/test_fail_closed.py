@@ -33,3 +33,26 @@ def test_fail_closed_helper_wording():
     text = fail_closed_search("serpapi 500")
     assert "serpapi 500" in text
     assert "Do not present unverified facts as sourced." in text
+
+
+async def test_empty_query_is_error_not_crash():
+    budget = ToolBudget(max_search_uses=8, max_fetches=8, max_rounds=1, web_context_chars=100)
+    async with httpx.AsyncClient() as client:
+        ex = ToolExecutor(client, budget, domain_mode=DomainMode.GENERAL_RESEARCH)
+        out = await ex.execute("web_search", {"query": "   "})
+        bad = await ex.execute("web_search", {"query": "acme", "num_results": "nope"})
+    assert out.startswith("ERROR:")
+    assert "empty" in out.lower()
+    assert "own knowledge" not in out.lower()
+    # Garbage num_results must not 500 — it falls back to the default and then
+    # hits "no provider" in tests, still fail-closed.
+    assert bad.startswith("ERROR:")
+
+
+async def test_bad_fetch_url_is_error_string():
+    budget = ToolBudget(max_search_uses=8, max_fetches=8, max_rounds=1, web_context_chars=100)
+    async with httpx.AsyncClient() as client:
+        ex = ToolExecutor(client, budget, domain_mode=DomainMode.GENERAL_RESEARCH)
+        out = await ex.execute("fetch_url", {"url": "not-a-url"})
+    assert out.startswith("ERROR:")
+    assert "own knowledge" not in out.lower()

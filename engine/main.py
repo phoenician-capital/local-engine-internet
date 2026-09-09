@@ -20,7 +20,9 @@ from .api.chat import router as chat_router
 from .api.compat import router as compat_router
 from .api.health import router as health_router
 from .api.openai_compat import router as openai_compat_router
+from .api.plugin import router as plugin_router
 from .api.primitives import router as primitives_router
+from .api.ui import router as ui_router
 from .auth import require_engine_key
 from .config import VLLM_REQUIRED_FLAGS, settings
 from .fetch.cache import FetchCache
@@ -61,6 +63,7 @@ async def lifespan(_app: FastAPI):
         ttl_seconds=settings.fetch_cache_ttl,
         failure_ttl_seconds=settings.fetch_cache_failure_ttl,
     )
+    runtime.plugin_enabled = settings.plugin_enabled
     providers = configured_providers()
     runtime.capabilities = {
         "brain_tool_calls_supported": False,
@@ -68,9 +71,11 @@ async def lifespan(_app: FastAPI):
         "providers": {name: True for name in providers},
     }
     logger.info(
-        "local-engine-internet listening on %s:%d — upstream=%s providers=%s fetch_mode=%s",
+        "local-engine-internet listening on %s:%d — plugin=%s intelligence=%s upstream=%s providers=%s fetch_mode=%s",
         settings.host,
         settings.port,
+        "on" if runtime.plugin_enabled else "off",
+        settings.default_web_policy,
         settings.upstream_llm_base_url,
         providers or ["(none — set SERPAPI_KEY)"],
         settings.fetch_mode,
@@ -109,12 +114,14 @@ if _cors:
         allow_origins=_cors,
         allow_credentials=False,
         allow_methods=["GET", "POST"],
-        allow_headers=["Authorization", "Content-Type", "X-Priority"],
+        allow_headers=["Authorization", "Content-Type", "X-Priority", "X-Phoenician-Plugin"],
     )
 
 _auth = [Depends(require_engine_key)]
 app.include_router(health_router)
+app.include_router(ui_router)
 app.include_router(openai_compat_router)
+app.include_router(plugin_router, dependencies=_auth)
 app.include_router(chat_router, dependencies=_auth)
 app.include_router(primitives_router, dependencies=_auth)
 app.include_router(compat_router, dependencies=_auth)

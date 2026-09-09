@@ -3,9 +3,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from ..errors import SearchUnavailable
+from ..plugin import require_plugin_enabled
 from ..runtime import get_http_client
 from ..search.base import SearchOutcome
 from ..search.merge import run_search
@@ -66,12 +67,14 @@ def hits_to_serpapi_shape(outcome: SearchOutcome) -> dict[str, Any]:
 
 @router.get("/search")
 async def serpapi_compat(
+    request: Request,
     q: str = Query(..., min_length=1, description="Search query"),
     engine: str = Query("google"),
     num: int = Query(10, ge=1, le=20),
     api_key: Optional[str] = Query(default=None),
 ) -> dict[str, Any]:
     del engine, api_key  # accepted for drop-in compatibility; auth is elsewhere
+    require_plugin_enabled(dict(request.headers))
     client = get_http_client()
     # Pin SerpAPI when configured so answer_box / KG survive for Earnings/EP.
     from ..search.merge import configured_providers

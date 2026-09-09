@@ -9,6 +9,8 @@ from .fetch.cache import FetchCache
 
 http_client: Optional[httpx.AsyncClient] = None
 fetch_cache: Optional[FetchCache] = None
+# Layer 1 — flipped at runtime via POST /v1/plugin or PLUGIN_ENABLED.
+plugin_enabled: bool = True
 capabilities: dict[str, Any] = {
     "brain_tool_calls_supported": False,
     "canary_error": "canary not run",

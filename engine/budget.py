@@ -8,6 +8,16 @@ from .config import settings
 COMPACT_STUB = "[compacted: {dropped} chars dropped; URLs retained: {urls}]"
 
 
+def _int_opt(web: dict, key: str, default: int) -> int:
+    """Honor explicit 0. ``web.get(key) or default`` would swallow it."""
+    if key not in web or web[key] is None or web[key] == "":
+        return default
+    try:
+        return int(web[key])
+    except (TypeError, ValueError):
+        return default
+
+
 @dataclass
 class ToolBudget:
     max_search_uses: int = 0
@@ -21,11 +31,11 @@ class ToolBudget:
     def from_web_options(cls, web: dict | None) -> "ToolBudget":
         web = web or {}
         return cls(
-            max_search_uses=int(web.get("max_search_uses") or settings.max_search_uses),
-            max_fetches=int(web.get("max_fetches") or settings.max_fetches),
-            max_rounds=int(web.get("max_rounds") or settings.max_tool_rounds),
-            web_context_chars=int(
-                web.get("web_context_budget_chars") or settings.web_context_budget_chars
+            max_search_uses=max(0, _int_opt(web, "max_search_uses", settings.max_search_uses)),
+            max_fetches=max(0, _int_opt(web, "max_fetches", settings.max_fetches)),
+            max_rounds=max(1, _int_opt(web, "max_rounds", settings.max_tool_rounds)),
+            web_context_chars=max(
+                0, _int_opt(web, "web_context_budget_chars", settings.web_context_budget_chars)
             ),
         )
 

@@ -5,16 +5,17 @@ from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from .. import runtime
 from ..config import VLLM_REQUIRED_FLAGS, settings
 from ..connect import connection_info
-from ..runtime import capabilities
+from ..plugin import plugin_status
 from ..search.merge import configured_providers
 
 router = APIRouter()
 
 
 def _search_ready() -> bool:
-    return bool(configured_providers())
+    return bool(configured_providers()) and bool(runtime.plugin_enabled)
 
 
 @router.get("/")
@@ -25,6 +26,8 @@ async def root() -> dict:
     return {
         "service": "local-engine-internet",
         "search_ready": _search_ready(),
+        "plugin": plugin_status(),
+        "ui": "/ui",
         "providers": providers,
         "docs": "/docs",
         "connect": {
@@ -61,7 +64,8 @@ async def health() -> dict:
     providers = configured_providers()
     return {
         "status": "ok",
-        "search_ready": bool(providers),
+        "search_ready": _search_ready(),
+        "plugin": plugin_status(),
         "upstream": settings.upstream_llm_base_url,
         "providers_configured": providers,
         "fetch_mode": settings.fetch_mode,
@@ -77,9 +81,9 @@ async def metrics() -> PlainTextResponse:
 async def get_capabilities() -> dict:
     return {
         "status": "ok",
-        "brain_tool_calls_supported": bool(capabilities.get("brain_tool_calls_supported")),
-        "canary_error": capabilities.get("canary_error"),
-        "canary_model": capabilities.get("canary_model"),
+        "brain_tool_calls_supported": bool(runtime.capabilities.get("brain_tool_calls_supported")),
+        "canary_error": runtime.capabilities.get("canary_error"),
+        "canary_model": runtime.capabilities.get("canary_model"),
         "upstream": settings.upstream_llm_base_url,
         "fetch_mode": settings.fetch_mode,
         "providers": {
@@ -88,5 +92,6 @@ async def get_capabilities() -> dict:
         },
         "vllm_required_flags": list(VLLM_REQUIRED_FLAGS),
         "search_ready": _search_ready(),
+        "plugin": plugin_status(),
         "tools": ["web_search", "fetch_url", "search_and_read"],
     }

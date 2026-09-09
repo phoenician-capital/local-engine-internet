@@ -9,11 +9,13 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from ..agent.loop import run_agent_loop
+from .. import runtime
+from ..agent.loop import run_agent_loop, strip_engine_tools, strip_extension_keys
 from ..agent.upstream import completions_url
-from ..config import settings
+from ..config import WebPolicy, settings
 from ..errors import RequiredSearchFailed
 from ..metrics import ACTIVE_REQUESTS, REQUEST_LATENCY_SECONDS, REQUESTS_TOTAL
+from ..plugin import intelligence_policy, plugin_enabled, plugin_status
 from ..runtime import get_http_client
 
 logger = logging.getLogger("engine.api.chat")
@@ -21,16 +23,39 @@ logger = logging.getLogger("engine.api.chat")
 router = APIRouter()
 
 
-def _should_run_loop(body: dict[str, Any]) -> bool:
+def _web_options(body: dict[str, Any]) -> dict[str, Any]:
     web = body.get("phoenician_web") or {}
-    policy = ""
-    if isinstance(web, dict):
-        policy = str(web.get("policy") or "").lower()
-    if policy == "off":
+    return web if isinstance(web, dict) else {}
+
+
+def _should_run_loop(body: dict[str, Any], headers: dict[str, str] | None = None) -> bool:
+    """Layer 1 off, or layer 2 off / empty tools → pass-through."""
+    web = _web_options(body)
+    if intelligence_policy(web, headers) is WebPolicy.OFF:
         return False
     if body.get("phoenician_tools") == []:
         return False
     return True
+
+
+def _outbound_chat_body(body: dict[str, Any], headers: dict[str, str] | None = None) -> dict[str, Any]:
+    """Never forward phoenician_* extras. Strip our tools when the plugin is off."""
+    outbound = strip_extension_keys(body)
+    if not plugin_enabled(_web_options(body), headers):
+        outbound = strip_engine_tools(outbound)
+    return outbound
+
+
+def _upstream_down_detail(exc: Exception) -> str:
+    search_bit = (
+        "Search still works at POST /v1/search. "
+        if runtime.plugin_enabled
+        else "Internet plugin is disabled (enable it at /ui). "
+    )
+    return (
+        f"Upstream LLM unreachable ({exc}). {search_bit}"
+        "Set UPSTREAM_LLM_BASE_URL (default http://127.0.0.1:8080) for chat."
+    )
 
 
 async def _proxy_stream(request: Request, body: dict[str, Any]) -> StreamingResponse:
@@ -42,7 +67,7 @@ async def _proxy_stream(request: Request, body: dict[str, Any]) -> StreamingResp
     req = client.build_request(
         "POST",
         completions_url(),
-        json=body,
+        json=_outbound_chat_body(body, headers),
         headers=upstream_headers,
         timeout=settings.request_timeout,
     )
@@ -70,12 +95,13 @@ async def _handle_chat(request: Request) -> JSONResponse | StreamingResponse:
     except Exception:
         raise HTTPException(status_code=400, detail="Request body must be JSON")
 
+    headers = {k.lower(): v for k, v in request.headers.items()}
     is_stream = bool(body.get("stream"))
-    wants_loop = _should_run_loop(body)
-    if is_stream and (wants_loop or body.get("phoenician_tools") or body.get("tools")):
+    wants_loop = _should_run_loop(body, headers)
+    if is_stream and wants_loop:
         raise HTTPException(
             status_code=400,
-            detail="stream:true and phoenician_tools cannot be combined yet — use one or the other.",
+            detail="stream:true and the internet plugin cannot be combined yet — disable the plugin or set phoenician_web.policy to off.",
         )
 
     ACTIVE_REQUESTS.inc()
@@ -83,12 +109,14 @@ async def _handle_chat(request: Request) -> JSONResponse | StreamingResponse:
     status = "error"
     try:
         if is_stream:
-            result = await _proxy_stream(request, body)
+            try:
+                result = await _proxy_stream(request, body)
+            except httpx.RequestError as exc:
+                raise HTTPException(status_code=502, detail=_upstream_down_detail(exc)) from exc
             status = "success"
             return result
 
         client = get_http_client()
-        headers = {k.lower(): v for k, v in request.headers.items()}
         try:
             loop = await run_agent_loop(client, body, headers)
         except RequiredSearchFailed as exc:
@@ -103,15 +131,15 @@ async def _handle_chat(request: Request) -> JSONResponse | StreamingResponse:
                 ),
             ) from exc
         except httpx.RequestError as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    f"Upstream LLM unreachable ({exc}). Search still works at POST /v1/search. "
-                    "Set UPSTREAM_LLM_BASE_URL (default http://127.0.0.1:8080) for chat."
-                ),
-            ) from exc
+            raise HTTPException(status_code=502, detail=_upstream_down_detail(exc)) from exc
 
         result = dict(loop.response)
+        result["phoenician_plugin"] = {
+            **plugin_status(_web_options(body), headers),
+            "searched": bool(loop.trace or loop.sources),
+            "intelligence": loop.intelligence,
+            "enabled": loop.plugin_enabled,
+        }
         if loop.trace:
             result["phoenician_tool_trace"] = loop.trace
             result["phoenician_usage_total"] = loop.usage

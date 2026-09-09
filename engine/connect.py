@@ -6,7 +6,9 @@ We serve both ``/chat/completions`` and ``/v1/chat/completions``.
 """
 from __future__ import annotations
 
+from . import runtime
 from .config import settings
+from .plugin import plugin_status
 from .search.merge import configured_providers
 
 
@@ -17,8 +19,10 @@ def public_base() -> str:
 def connection_info() -> dict:
     base = public_base()
     providers = configured_providers()
+    plugin = plugin_status()
     return {
-        "search_ready": bool(providers),
+        "search_ready": bool(providers) and bool(runtime.plugin_enabled),
+        "plugin": plugin,
         "providers": providers,
         "openai_base_url": f"{base}/v1",
         "openai_base_url_no_v1": base,
@@ -65,9 +69,11 @@ def connection_info() -> dict:
             ),
         },
         "notes": [
-            "Search is injected by default. Do not send phoenician_tools unless you want to opt out (empty list) or pin tools.",
+            "Layer 1: the internet plugin is on or off (GET/POST /v1/plugin, or /ui).",
+            "Layer 2: when on, the model decides whether this question needs the live web (policy: auto).",
+            "Do not send phoenician_tools unless you want to opt out (empty list) or pin tools.",
             "Mode 2 (chat) needs UPSTREAM_LLM_BASE_URL pointing at ai-router or any OpenAI-compatible LLM.",
-            "Mode 1 (POST /v1/search) works with search keys only — no Brain.",
+            "Mode 1 (POST /v1/search) works with search keys only — no Brain. 503 if the plugin is off.",
         ],
     }
 
@@ -78,10 +84,12 @@ def print_banner() -> None:
     providers = ", ".join(info["providers"]) or "none — set SERPAPI_KEY"
     print()
     print(f"  local-engine-internet  {base}")
+    print(f"  plugin                 {'on' if info['plugin']['enabled'] else 'off'}  (intelligence: {info['plugin']['intelligence']})")
     print(f"  search_ready           {info['search_ready']}  ({providers})")
     print()
     print("  Plug an LLM client in:")
     print(f'    OpenAI / Cursor / Continue  base_url="{base}/v1"  api_key="{info["api_key"]}"')
     print(f'    DeepSeek SDK                base_url="{base}"')
+    print(f"    Toggle                      {base}/ui")
     print(f"    Docs                        {base}/docs")
     print()

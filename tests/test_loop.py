@@ -3,6 +3,7 @@ import json
 import httpx
 import pytest
 
+from engine import runtime
 from engine.agent.loop import LoopResult, run_agent_loop
 from engine.errors import RequiredSearchFailed
 from engine.tools.schemas import WEB_SEARCH_SCHEMA
@@ -167,6 +168,35 @@ async def test_policy_off_passthrough(monkeypatch):
         )
     assert called["n"] == 1
     assert result.trace == []
+    assert result.plugin_enabled is True
+    assert result.intelligence == "off"
+
+
+async def test_plugin_disabled_passthrough(monkeypatch):
+    runtime.plugin_enabled = False
+    called = {"n": 0}
+
+    async def _post(client, body, headers=None):
+        called["n"] += 1
+        assert "tools" not in body
+        return _assistant_text("offline")
+
+    monkeypatch.setattr("engine.agent.loop.post_completion", _post)
+    async with httpx.AsyncClient() as client:
+        result = await run_agent_loop(
+            client,
+            {
+                "messages": [{"role": "user", "content": "What did Nvidia report?"}],
+                "phoenician_tools": ["web_search"],
+                "phoenician_web": {"policy": "required", "enabled": True},
+                "tools": [WEB_SEARCH_SCHEMA],
+                "tool_choice": "auto",
+            },
+        )
+    assert called["n"] == 1
+    assert result.trace == []
+    assert result.plugin_enabled is False
+    assert result.intelligence == "off"
 
 
 def test_schema_is_openai_function():

@@ -5,12 +5,13 @@ import asyncio
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from ..errors import SearchUnavailable
 from ..fetch.ladder import fetch_url
 from ..metrics import REQUESTS_TOTAL
+from ..plugin import require_plugin_enabled
 from ..runtime import get_http_client
 from ..search.merge import run_search
 
@@ -62,7 +63,8 @@ class ResearchRequest(BaseModel):
 
 
 @router.post("/v1/search")
-async def v1_search(req: SearchRequest) -> dict[str, Any]:
+async def v1_search(req: SearchRequest, request: Request) -> dict[str, Any]:
+    require_plugin_enabled(dict(request.headers))
     client = get_http_client()
     try:
         outcome = await run_search(
@@ -88,7 +90,8 @@ async def v1_search(req: SearchRequest) -> dict[str, Any]:
 
 
 @router.post("/v1/fetch")
-async def v1_fetch(req: FetchRequest) -> dict[str, Any]:
+async def v1_fetch(req: FetchRequest, request: Request) -> dict[str, Any]:
+    require_plugin_enabled(dict(request.headers))
     client = get_http_client()
     page = await fetch_url(
         client,
@@ -102,7 +105,8 @@ async def v1_fetch(req: FetchRequest) -> dict[str, Any]:
 
 
 @router.post("/v1/research")
-async def v1_research(req: ResearchRequest) -> dict[str, Any]:
+async def v1_research(req: ResearchRequest, request: Request) -> dict[str, Any]:
+    require_plugin_enabled(dict(request.headers))
     client = get_http_client()
     try:
         outcome = await run_search(
@@ -116,9 +120,11 @@ async def v1_research(req: ResearchRequest) -> dict[str, Any]:
     except SearchUnavailable as exc:
         raise HTTPException(status_code=502, detail=exc.message) from exc
 
+    organics = [h for h in outcome.hits if h.url and h.kind == "organic"]
+    organics.sort(key=lambda h: (0 if h.also_from else 1))
     urls: list[str] = []
-    for hit in outcome.hits:
-        if hit.url and hit.kind == "organic" and hit.url not in urls:
+    for hit in organics:
+        if hit.url not in urls:
             urls.append(hit.url)
         if len(urls) >= req.fetch_top:
             break

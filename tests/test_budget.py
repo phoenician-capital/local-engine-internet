@@ -22,3 +22,18 @@ def test_compacts_oldest_tool_outputs_first():
     assert messages[1]["content"].startswith("[compacted:")
     assert "https://a.example" in messages[1]["content"]
     assert messages[2]["content"] == "short keep"
+
+
+def test_from_web_options_honors_explicit_zero():
+    b = ToolBudget.from_web_options({"max_search_uses": 0, "max_fetches": 0})
+    assert b.max_search_uses == 0
+    assert b.max_fetches == 0
+    assert not b.allow_search()
+    assert not b.allow_fetch()
+    assert b.max_rounds >= 1
+
+
+def test_from_web_options_ignores_garbage():
+    b = ToolBudget.from_web_options({"max_search_uses": "nope", "max_rounds": ""})
+    assert b.max_search_uses > 0
+    assert b.max_rounds >= 1

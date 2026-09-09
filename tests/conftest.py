@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from engine import runtime
 from engine.config import settings
 from engine.fetch.ladder import _PROCESS_CACHE
 
@@ -29,6 +30,8 @@ def _reset_settings():
         "web_context_budget_chars": settings.web_context_budget_chars,
         "search_provider_retries": settings.search_provider_retries,
         "tavily_search_depth": settings.tavily_search_depth,
+        "plugin_enabled": settings.plugin_enabled,
+        "default_web_policy": settings.default_web_policy,
     }
     settings.engine_api_key = ""
     settings.serpapi_key = ""
@@ -45,10 +48,15 @@ def _reset_settings():
     settings.thin_html_char_threshold = 400
     settings.search_provider_retries = 0
     settings.tavily_search_depth = "basic"
+    settings.plugin_enabled = True
+    settings.default_web_policy = "auto"
+    original_runtime_plugin = runtime.plugin_enabled
+    runtime.plugin_enabled = True
     _PROCESS_CACHE.clear()
     yield
     for key, value in original.items():
         setattr(settings, key, value)
+    runtime.plugin_enabled = original_runtime_plugin
     _PROCESS_CACHE.clear()
 
 

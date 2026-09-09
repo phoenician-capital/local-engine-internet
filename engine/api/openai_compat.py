@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from ..config import settings
 from ..connect import connection_info
+from ..plugin import plugin_status
 
 router = APIRouter()
 
@@ -38,6 +39,7 @@ async def openai_root() -> dict:
     return {
         "object": "local-engine-internet",
         "search_ready": info["search_ready"],
+        "plugin": plugin_status(),
         "providers": info["providers"],
         "openai_base_url": info["openai_base_url"],
         "model": info["model"],
@@ -46,6 +48,8 @@ async def openai_root() -> dict:
             "models": "/v1/models",
             "search": "/v1/search",
             "fetch": "/v1/fetch",
+            "plugin": "/v1/plugin",
+            "ui": "/ui",
         },
         "connect": info["snippets"],
         "notes": info["notes"],

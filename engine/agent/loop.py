@@ -10,9 +10,10 @@ from typing import Any, Optional
 import httpx
 
 from ..budget import ToolBudget
-from ..config import FetchMode, WebPolicy, parse_domain_mode, parse_fetch_mode, parse_web_policy, settings
+from ..config import FetchMode, WebPolicy, parse_domain_mode, parse_fetch_mode, settings
 from ..errors import RequiredSearchFailed
 from ..metrics import TOOL_ROUNDS
+from ..plugin import intelligence_policy, plugin_enabled
 from ..tools.dsml_fallback import recover_tool_calls
 from ..tools.execute import ToolExecutor
 from ..tools.schemas import DEFAULT_TOOLS, TOOL_SCHEMAS, WEB_SEARCH_NAME
@@ -34,6 +35,8 @@ class LoopResult:
     citations: str = ""
     search_failed: bool = False
     rounds: int = 0
+    plugin_enabled: bool = True
+    intelligence: str = "auto"
 
 
 def _parse_args(raw: str | None) -> dict[str, Any]:
@@ -86,19 +89,61 @@ def _strip_extensions(body: dict[str, Any]) -> tuple[dict[str, Any], list[str], 
     return body, managed, web
 
 
+def strip_extension_keys(body: dict[str, Any]) -> dict[str, Any]:
+    """Remove phoenician_* fields before the body is sent upstream."""
+    out = dict(body)
+    for key in EXTENSION_KEYS:
+        out.pop(key, None)
+    return out
+
+
+def strip_engine_tools(body: dict[str, Any]) -> dict[str, Any]:
+    """Drop this engine's search/fetch tools so a disabled plugin cannot search."""
+    tools = body.get("tools")
+    if not isinstance(tools, list):
+        return body
+    kept = [
+        t
+        for t in tools
+        if not (
+            isinstance(t, dict)
+            and (t.get("function") or {}).get("name") in TOOL_SCHEMAS
+        )
+    ]
+    if kept:
+        body["tools"] = kept
+        return body
+    body.pop("tools", None)
+    choice = body.get("tool_choice")
+    name = ""
+    if isinstance(choice, dict):
+        name = str((choice.get("function") or {}).get("name") or "")
+    if choice in ("auto", "required") or name in TOOL_SCHEMAS:
+        body.pop("tool_choice", None)
+    return body
+
+
 async def run_agent_loop(
     client: httpx.AsyncClient,
     body: dict[str, Any],
     headers: Optional[dict[str, str]] = None,
 ) -> LoopResult:
     body, managed, web = _strip_extensions(body)
-    policy = parse_web_policy(web.get("policy") or settings.default_web_policy)
     headers = headers or {}
+    layer1 = plugin_enabled(web, headers)
+    policy = intelligence_policy(web, headers)
 
-    if policy is WebPolicy.OFF or not managed:
-        # Pure pass-through — no tool injection, no guidance.
+    if not layer1 or policy is WebPolicy.OFF or not managed:
+        # Layer 1 off, or layer 2 off — plain pass-through. No tools, no guidance.
+        if not layer1:
+            body = strip_engine_tools(body)
         response = await post_completion(client, body, headers)
-        return LoopResult(response=response, usage=extract_usage(response))
+        return LoopResult(
+            response=response,
+            usage=extract_usage(response),
+            plugin_enabled=layer1,
+            intelligence="off",
+        )
 
     domain_mode = parse_domain_mode(web.get("domain_mode") or settings.default_domain_mode)
     fetch_mode: Optional[FetchMode] = None
@@ -201,6 +246,8 @@ async def run_agent_loop(
         citations=citations_block(executor.sources),
         search_failed=executor.search_failed,
         rounds=rounds,
+        plugin_enabled=True,
+        intelligence=policy.value,
     )
 
 

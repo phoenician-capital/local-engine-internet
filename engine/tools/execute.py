@@ -18,6 +18,26 @@ from .schemas import FETCH_URL_NAME, SEARCH_AND_READ_NAME, WEB_SEARCH_NAME
 logger = logging.getLogger("engine.tools.execute")
 
 
+def _opt_int(
+    value: Any,
+    default: Optional[int] = None,
+    *,
+    lo: Optional[int] = None,
+    hi: Optional[int] = None,
+) -> Optional[int]:
+    if value is None or value == "":
+        return default
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    if lo is not None:
+        n = max(lo, n)
+    if hi is not None:
+        n = min(hi, n)
+    return n
+
+
 def format_page_for_model(page: Page) -> str:
     header = f"[PUBLIC_URL: {page.final_url or page.url}]"
     if not page.ok:
@@ -84,10 +104,13 @@ class ToolExecutor:
         num_results: Optional[int] = None,
         recency_days: Optional[int] = None,
     ) -> str:
+        query = (query or "").strip()
+        if not query:
+            return fail_closed_search("query must not be empty")
         if not self.budget.allow_search():
             return fail_closed_budget("search", self.budget.max_search_uses)
         self.budget.note_search()
-        n = int(num_results or settings.default_num_results)
+        n = _opt_int(num_results, settings.default_num_results, lo=1, hi=20) or settings.default_num_results
         try:
             outcome = await run_search(
                 self.client,
@@ -118,7 +141,7 @@ class ToolExecutor:
         page = await fetch_url(
             self.client,
             url,
-            max_chars=max_chars,
+            max_chars=_opt_int(max_chars, None, lo=200, hi=50_000),
             fetch_mode=self.fetch_mode,
             domain_mode=self.domain_mode,
         )
@@ -126,7 +149,10 @@ class ToolExecutor:
         return format_page_for_model(page)
 
     async def search_and_read(self, query: str, top_n: Optional[int] = None) -> str:
-        n = int(top_n or settings.default_search_and_read_top_n)
+        query = (query or "").strip()
+        if not query:
+            return fail_closed_search("query must not be empty")
+        n = _opt_int(top_n, settings.default_search_and_read_top_n, lo=1, hi=8) or settings.default_search_and_read_top_n
         search_text = await self.web_search(query)
         if search_text.startswith("ERROR:"):
             return search_text
@@ -150,17 +176,17 @@ class ToolExecutor:
         if name == WEB_SEARCH_NAME:
             return await self.web_search(
                 query=str(arguments.get("query") or ""),
-                num_results=arguments.get("num_results"),
-                recency_days=arguments.get("recency_days"),
+                num_results=_opt_int(arguments.get("num_results"), lo=1, hi=20),
+                recency_days=_opt_int(arguments.get("recency_days"), lo=1, hi=3650),
             )
         if name == FETCH_URL_NAME:
             return await self.fetch(
                 url=str(arguments.get("url") or ""),
-                max_chars=arguments.get("max_chars"),
+                max_chars=_opt_int(arguments.get("max_chars"), lo=200, hi=50_000),
             )
         if name == SEARCH_AND_READ_NAME:
             return await self.search_and_read(
                 query=str(arguments.get("query") or ""),
-                top_n=arguments.get("top_n"),
+                top_n=_opt_int(arguments.get("top_n"), lo=1, hi=8),
             )
         return f"ERROR: tool '{name}' is not available. Do not present unverified facts as sourced."

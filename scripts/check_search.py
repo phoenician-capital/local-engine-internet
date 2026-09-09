@@ -64,9 +64,22 @@ def check_via_engine() -> bool:
             print(f"engine: {ENGINE_URL}")
             print(f"  search_ready: {welcome.get('search_ready')}")
             print(f"  providers: {welcome.get('providers')}")
+            plugin = welcome.get("plugin") or {}
+            if plugin:
+                print(
+                    f"  plugin: {plugin.get('enabled')}  "
+                    f"intelligence={plugin.get('intelligence')}"
+                )
             if welcome.get("hint"):
                 print(f"  hint: {welcome['hint']}")
             if not welcome.get("search_ready"):
+                if plugin.get("enabled") is False:
+                    print(
+                        "FAIL: internet plugin is disabled. Enable it at /ui "
+                        'or POST /v1/plugin {"enabled": true}.',
+                        file=sys.stderr,
+                    )
+                    return False
                 print("FAIL: engine is up but no search provider is configured.", file=sys.stderr)
                 print("      Set SERPAPI_KEY in .env and restart.", file=sys.stderr)
                 return False

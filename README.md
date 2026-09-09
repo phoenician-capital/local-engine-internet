@@ -28,7 +28,7 @@ In a second terminal, from the same repo with the venv on:
 python scripts/check_search.py
 ```
 
-You are done when that prints `check_search ok` and `GET http://127.0.0.1:8090/` shows `search_ready: true`. Interactive API: http://127.0.0.1:8090/docs
+You are done when that prints `check_search ok` and `GET http://127.0.0.1:8090/` shows `search_ready: true`. Control page: http://127.0.0.1:8090/ui · Interactive API: http://127.0.0.1:8090/docs
 
 **Docker (closest to a one-command plugin):**
 
@@ -49,7 +49,18 @@ Search does **not** need a Brain or Playwright. Chat-with-search (Mode 2) needs 
 
 ## Plug into your LLM
 
-This is an OpenAI-compatible server. Other people do **not** install a plugin inside Cursor/Claude — they change the **base URL** of the client they already have. Search tools are injected automatically (`policy: auto`). No `phoenician_tools` field required.
+This is an OpenAI-compatible server. Other people do **not** install a plugin inside Cursor/Claude — they change the **base URL** of the client they already have.
+
+## Two-layer internet plugin
+
+| Layer | What it is | How you set it |
+|---|---|---|
+| **1 — master** | Enabled or disabled. Off means no search, no fetch. Chat is a plain LLM pass-through. | `/ui` toggle, `POST /v1/plugin {"enabled": true\|false}`, `PLUGIN_ENABLED`, `phoenician_web.enabled`, or header `X-Phoenician-Plugin: off` |
+| **2 — intelligence** | Only when layer 1 is on. The **model** decides whether this question needs the live web. | Default `policy: auto`. Research desks can still force a search with `policy: required`. |
+
+Global off always wins — a request cannot force the plugin on. Mode 1 (`/v1/search`, `/v1/fetch`, `/v1/research`, `GET /search`) returns **503** while the plugin is disabled.
+
+Search tools are injected automatically when the plugin is on (`policy: auto`). No `phoenician_tools` field required.
 
 We serve both URL shapes because clients disagree:
 
@@ -111,7 +122,7 @@ apps  →  local-engine-internet :8090  →  ai-router :8080  →  vLLM Flash
               └─ GET /search            SerpAPI-shaped drop-in
 ```
 
-Apps change `DEEPSEEK_BASE_URL` to this engine. Default policy is `auto`: the model gets `web_search`, `fetch_url`, and `search_and_read` and uses them when needed. Set `phoenician_web.policy` to `off` for a plain pass-through.
+Apps change `DEEPSEEK_BASE_URL` to this engine. With the plugin **enabled**, default policy is `auto`: the model gets `web_search`, `fetch_url`, and `search_and_read` and uses them when *it* decides the question needs the web. Disable the plugin (layer 1) or set `phoenician_web.policy` to `off` for a plain pass-through.
 
 ## Hard prerequisite: the Brain must emit tool calls
 
@@ -150,6 +161,7 @@ Request extras (stripped before upstream):
   "messages": [{"role": "user", "content": "…"}],
   "phoenician_tools": ["web_search", "fetch_url", "search_and_read"],
   "phoenician_web": {
+    "enabled": true,
     "policy": "auto",
     "max_search_uses": 8,
     "max_fetches": 8,
@@ -160,11 +172,14 @@ Request extras (stripped before upstream):
 }
 ```
 
-- `policy: auto` — model chooses (default).
+- `enabled: false` — layer 1 off for this request (same as the master switch).
+- `policy: auto` — layer 2: the model chooses whether to search (default).
 - `policy: required` — PI `force_web_search`. If the first turn has no tool call, the engine re-asks once with `tool_choice` forced on `web_search`, then **HTTP 424** if there is still no successful search.
-- `policy: off` — pass-through, no tools, no guidance.
+- `policy: off` — pass-through, no tools, no guidance (plugin stays on; intelligence is off).
 
 Response extras (ai-router shapes plus citations):
+
+- `phoenician_plugin` — `{enabled, intelligence, searched}`
 
 - `phoenician_tool_trace` — every tool call
 - `phoenician_usage_total` — summed tokens across rounds
@@ -246,6 +261,7 @@ Research callers treat “answer from your own knowledge” as a bug. This engin
 | Every provider fails | Same ERROR string; Mode 1 returns **502** |
 | Search / fetch over budget | ERROR string, no invented data |
 | `policy: required` and no successful search | **HTTP 424** |
+| Internet plugin disabled (layer 1) | Mode 1 **503**; Mode 2 chat pass-through (no tools) |
 | Empty hits after a successful provider call | Returned as “no results” (not a failure) |
 
 Default for Mode 1 `/v1/search` is `on_empty: empty`. Set `on_empty: error` to 502 on zero hits.
@@ -293,7 +309,8 @@ Auth: `Authorization: Bearer $ENGINE_API_KEY`. Unset = open (local use, same as 
 | `DOC_FETCH_TIMEOUT` | `20` | Seconds |
 | `REQUEST_TIMEOUT` | `300` | Upstream LLM |
 | `SEC_EDGAR_USER_AGENT` | LocalEngineInternet/1.0 + phoeniciancapital.com | Required by EDGAR |
-| `DEFAULT_WEB_POLICY` | `auto` | `auto` / `required` / `off` |
+| `PLUGIN_ENABLED` | `true` | Layer 1 master switch (also `POST /v1/plugin` / `/ui`) |
+| `DEFAULT_WEB_POLICY` | `auto` | Layer 2 when the plugin is on: `auto` / `required` / `off` |
 | `RUN_CANARY_ON_STARTUP` | `true` | Brain tool-call probe (background, does not block search) |
 | `CANARY_TIMEOUT_SECONDS` | `5` | How long the probe waits for ai-router |
 

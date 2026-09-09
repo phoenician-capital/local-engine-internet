@@ -54,6 +54,8 @@ def run_setup(argv: list[str] | None = None) -> int:
     print_banner()
     print("Start the engine:")
     print("  python -m engine")
+    print("Toggle the internet plugin (on/off; the model decides when to search):")
+    print("  open http://127.0.0.1:8090/ui")
     print("Prove search:")
     print("  python scripts/check_search.py")
     if args.check:
