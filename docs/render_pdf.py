@@ -23,7 +23,7 @@ def main() -> None:
                 '<div style="font-size:8.5pt;color:#6b6459;width:100%;'
                 'padding:0 18mm;font-family:Helvetica,Arial,sans-serif;">'
                 '<span>Phoenician Capital  ·  local-engine-internet</span>'
-                '<span style="float:right;">Full method  ·  8 September 2026</span>'
+                '<span style="float:right;">How it works  ·  9 September 2026</span>'
                 "</div>"
             ),
             footer_template=(
