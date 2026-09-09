@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>local-engine-internet</title>
+<title>local-engine-internet — internals</title>
 <style>
   @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-    font-size: 10.6pt;
-    line-height: 1.48;
+    font-size: 10.5pt;
+    line-height: 1.46;
     color: #1c1914;
     background: #fff;
   }
@@ -24,29 +24,29 @@
     border-top: 6px solid #1b2a4a;
   }
   .kicker { letter-spacing: 0.18em; text-transform: uppercase; font-size: 9pt; color: #7a3b2e; font-weight: 600; margin-bottom: 14px; }
-  .cover h1 { font-size: 28pt; line-height: 1.15; font-weight: 600; color: #1b2a4a; margin: 0 0 16px; }
-  .cover .lede { font-size: 13pt; line-height: 1.4; color: #3a342c; max-width: 155mm; margin: 0 0 24px; }
+  .cover h1 { font-size: 26pt; line-height: 1.15; font-weight: 600; color: #1b2a4a; margin: 0 0 16px; }
+  .cover .lede { font-size: 12.5pt; line-height: 1.4; color: #3a342c; max-width: 155mm; margin: 0 0 24px; }
   .cover-meta { font-size: 9.5pt; color: #5c564c; line-height: 1.7; }
   .rule { border: 0; border-top: 1px solid #d4cfc4; margin: 22px 0; }
-  h2 { font-size: 15pt; color: #1b2a4a; margin: 22px 0 8px; page-break-after: avoid; }
-  h3 { font-size: 11.5pt; color: #7a3b2e; margin: 16px 0 6px; page-break-after: avoid; }
-  h4 { font-size: 10.2pt; color: #1b2a4a; margin: 12px 0 4px; page-break-after: avoid; }
+  h2 { font-size: 14.5pt; color: #1b2a4a; margin: 22px 0 8px; page-break-after: avoid; }
+  h3 { font-size: 11.4pt; color: #7a3b2e; margin: 16px 0 6px; page-break-after: avoid; }
+  h4 { font-size: 10.1pt; color: #1b2a4a; margin: 12px 0 4px; page-break-after: avoid; }
   p { margin: 0 0 8px; }
   ul, ol { margin: 0 0 10px 1.2em; padding: 0; }
   li { margin-bottom: 3px; }
   .toc { page-break-after: always; }
   .toc ol { list-style: none; margin: 0; padding: 0; }
-  .toc li { display: flex; justify-content: space-between; border-bottom: 1px dotted #d4cfc4; padding: 5px 0; font-size: 10.5pt; }
+  .toc li { display: flex; justify-content: space-between; border-bottom: 1px dotted #d4cfc4; padding: 5px 0; font-size: 10.3pt; }
   .toc a { color: #1b2a4a; text-decoration: none; }
-  table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 8.8pt; line-height: 1.35; page-break-inside: avoid; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 8.6pt; line-height: 1.35; page-break-inside: avoid; }
   th { text-align: left; background: #1b2a4a; color: #fff; font-weight: 600; padding: 5px 7px; }
   td { padding: 4px 7px; vertical-align: top; border-bottom: 1px solid #e6e1d6; }
   tr:nth-child(even) td { background: #f6f3ec; }
-  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.6pt; }
+  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.5pt; }
   pre {
     font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 8pt;
-    line-height: 1.4;
+    font-size: 7.8pt;
+    line-height: 1.38;
     background: #f6f3ec;
     border: 1px solid #e6e1d6;
     padding: 8px 10px;
@@ -56,19 +56,21 @@
   }
   .section { page-break-before: always; }
   .section.first { page-break-before: auto; }
+  .note { font-size: 9.6pt; color: #3a342c; }
 </style>
 </head>
 <body>
 
 <section class="cover">
   <div class="kicker">local-engine-internet</div>
-  <h1>How it works,<br/>and what is in the repo</h1>
-  <p class="lede">HTTP service on <span class="mono">:8090</span>. Search and fetch. Chat with tools in front of an OpenAI-compatible LLM at <span class="mono">UPSTREAM_LLM_BASE_URL</span> (default <span class="mono">:8080</span>). This document is the system as it exists now.</p>
+  <h1>Internals of this repo</h1>
+  <p class="lede">A file-by-file account of the FastAPI process on <span class="mono">:8090</span>. Search, fetch, and an OpenAI-compatible tool loop in front of <span class="mono">UPSTREAM_LLM_BASE_URL</span>. After this document you should be able to open any file under <span class="mono">engine/</span> and already know what it does.</p>
   <hr class="rule" />
   <div class="cover-meta">
+    Package: <span class="mono">engine</span> · version 0.1.0 · Python ≥ 3.12<br/>
     Toggle: http://127.0.0.1:8090/ui<br/>
     OpenAPI: http://127.0.0.1:8090/docs<br/>
-    Source: <span class="mono">engine/</span>
+    Source of truth for this paper: the Python in this repository, not comments elsewhere.
   </div>
 </section>
 
@@ -76,298 +78,702 @@
   <h2>Contents</h2>
   <ol>
     <li><a href="#s1">1. What the process does</a></li>
-    <li><a href="#s2">2. Plugin — on/off, then the model chooses</a></li>
-    <li><a href="#s3">3. Mode 1 — search / fetch / research</a></li>
-    <li><a href="#s4">4. Mode 2 — chat tool loop</a></li>
-    <li><a href="#s5">5. Search</a></li>
-    <li><a href="#s6">6. Fetch</a></li>
-    <li><a href="#s7">7. What is in the repo</a></li>
-    <li><a href="#s8">8. Environment</a></li>
-    <li><a href="#s9">9. How to run</a></li>
+    <li><a href="#s2">2. Process start — main, runtime, config, auth</a></li>
+    <li><a href="#s3">3. Plugin — two layers</a></li>
+    <li><a href="#s4">4. HTTP surface — every route and status</a></li>
+    <li><a href="#s5">5. Mode 1 — search, fetch, research, GET /search</a></li>
+    <li><a href="#s6">6. Mode 2 — chat, loop, tools, DSML</a></li>
+    <li><a href="#s7">7. Search mix — providers, merge, query</a></li>
+    <li><a href="#s8">8. Fetch ladder — policy, tiers, PDF, SEC, JS</a></li>
+    <li><a href="#s9">9. Supporting modules</a></li>
+    <li><a href="#s10">10. File map of the repo</a></li>
+    <li><a href="#s11">11. Tests — what each file locks</a></li>
+    <li><a href="#s12">12. Scripts and Docker</a></li>
+    <li><a href="#s13">13. Environment</a></li>
+    <li><a href="#s14">14. How to run</a></li>
   </ol>
 </nav>
 
+<!-- ============================================================ -->
 <section class="section first" id="s1">
   <h2>1. What the process does</h2>
-  <p>One FastAPI process. It does not load a model. It talks to search APIs, downloads pages, and (in chat) sits between the client and an upstream LLM.</p>
+  <p>One FastAPI app (`engine.main:app`). It does not load weights. It talks to search APIs, downloads pages, and — only in chat — sits between the client and an upstream OpenAI-compatible LLM (default <span class="mono">http://127.0.0.1:8080</span>, typically ai-router).</p>
 <pre>client
    │
    ▼
 engine :8090
-   ├── POST /v1/search | /v1/fetch | /v1/research
-   ├── GET  /search
-   └── POST /v1/chat/completions  →  UPSTREAM_LLM_BASE_URL
-                                         (default :8080)
+   ├── Mode 1  POST /v1/search | /v1/fetch | /v1/research
+   ├── Mode 1  GET  /search          (SerpAPI-shaped JSON)
+   └── Mode 2  POST /v1/chat/completions
+                    POST /chat/completions
+                         │
+                         ▼
+                   UPSTREAM_LLM_BASE_URL  (default :8080)
 </pre>
-  <p><strong>Mode 1</strong> — you send a query or a URL. No LLM in the hop.</p>
-  <p><strong>Mode 2</strong> — you send chat messages. The engine may inject tools, run them, and call the LLM again until it answers in prose.</p>
-  <p>Same search and fetch code under both. If the plugin is off, Mode 1 returns 503 and Mode 2 is a pass-through (no tools).</p>
+  <p><strong>Mode 1</strong> — the caller already decided to search or fetch. No LLM in the hop. Plugin off → HTTP 503.</p>
+  <p><strong>Mode 2</strong> — the caller sends chat messages. The engine may inject tools, run them, and call the LLM again until it answers in prose. Plugin off → pass-through (no tools).</p>
+  <p>Same search code (<span class="mono">engine/search/merge.py</span>) and fetch code (<span class="mono">engine/fetch/ladder.py</span>) under both modes. Fail-closed: tool and search errors are <span class="mono">ERROR: … Do not present unverified facts as sourced.</span> The string “answer from your own knowledge” is never emitted.</p>
+  <p>Two modes are never mixed in one hop. A Mode 1 request never calls the Brain. A Mode 2 request only searches if the tool loop runs a tool.</p>
 </section>
 
+<!-- ============================================================ -->
 <section class="section" id="s2">
-  <h2>2. Plugin — on/off, then the model chooses</h2>
-  <p>Code: <span class="mono">engine/plugin.py</span>, <span class="mono">runtime.plugin_enabled</span>, <span class="mono">engine/api/plugin.py</span>, <span class="mono">engine/api/ui.py</span>.</p>
+  <h2>2. Process start — main, runtime, config, auth</h2>
 
-  <h3>Layer 1 — enabled or disabled</h3>
-  <p>A boolean. Off means no search and no fetch.</p>
-  <ul>
-    <li>Mode 1 → HTTP 503</li>
-    <li>Mode 2 → body forwarded to the LLM with <span class="mono">phoenician_*</span> removed and this engine’s tools stripped</li>
-  </ul>
-  <p>Set it at <span class="mono">/ui</span>, <span class="mono">POST /v1/plugin {"enabled": true|false}</span>, or <span class="mono">PLUGIN_ENABLED</span> at startup. One request can turn it off with <span class="mono">phoenician_web.enabled: false</span> or header <span class="mono">X-Phoenician-Plugin: off</span>. A request cannot turn it on if the process switch is off.</p>
-  <p><span class="mono">GET /v1/plugin</span> returns <span class="mono">enabled</span>, <span class="mono">intelligence</span>, <span class="mono">providers</span>, <span class="mono">search_ready</span>. Ready = at least one search key <em>and</em> plugin on.</p>
+  <h3><span class="mono">python -m engine</span> — <span class="mono">engine/__main__.py</span></h3>
+  <p>CLI: <span class="mono">run</span> (default), <span class="mono">setup</span>, <span class="mono">check</span>, or <span class="mono">help</span>. Unknown non-flag first args exit 2. <span class="mono">run</span> prints the connect banner then starts uvicorn on <span class="mono">engine.main:app</span> with <span class="mono">reload=False</span>. <span class="mono">setup</span> delegates to <span class="mono">engine/setup.py</span>. <span class="mono">check</span> runs <span class="mono">scripts/check_search.py</span> via <span class="mono">runpy</span>.</p>
+  <p>Console script alias from <span class="mono">pyproject.toml</span>: <span class="mono">local-engine</span> → <span class="mono">engine.__main__:main</span>.</p>
 
-  <h3>Layer 2 — only when layer 1 is on</h3>
-  <p><span class="mono">phoenician_web.policy</span> (or <span class="mono">DEFAULT_WEB_POLICY</span>):</p>
+  <h3><span class="mono">engine/main.py</span></h3>
+  <p>Creates the FastAPI app (title “Phoenician local-engine-internet”, version 0.1.0) with a lifespan:</p>
+  <ol>
+    <li>Build a shared <span class="mono">httpx.AsyncClient</span>: User-Agent <span class="mono">local-engine-internet/0.1</span>, <span class="mono">follow_redirects=True</span>, connect/write timeout = <span class="mono">DOC_FETCH_TIMEOUT</span> (20s), read timeout = <span class="mono">REQUEST_TIMEOUT</span> (300s).</li>
+    <li>Build <span class="mono">FetchCache</span> with <span class="mono">FETCH_CACHE_TTL</span> (1800s) and <span class="mono">FETCH_CACHE_FAILURE_TTL</span> (120s). Stored on <span class="mono">runtime.fetch_cache</span>. The ladder also keeps its own process cache (<span class="mono">_PROCESS_CACHE</span>); Mode 1/2 fetch currently uses that module-level cache unless a caller passes one in.</li>
+    <li>Copy <span class="mono">settings.plugin_enabled</span> into <span class="mono">runtime.plugin_enabled</span>.</li>
+    <li>Set <span class="mono">runtime.capabilities</span>: <span class="mono">brain_tool_calls_supported=False</span>, a canary note, and <span class="mono">providers</span> from <span class="mono">configured_providers()</span>.</li>
+    <li>If no providers: log a warning. Search will 502 until a key is set.</li>
+    <li>If <span class="mono">RUN_CANARY_ON_STARTUP</span>: schedule <span class="mono">run_canary</span> as a background task. Listen is not blocked if the Brain is down. Timeout is <span class="mono">CANARY_TIMEOUT_SECONDS</span> (5s).</li>
+    <li>On shutdown: cancel the canary, close the httpx client.</li>
+  </ol>
+  <p>CORS: origins from <span class="mono">CORS_ALLOWED_ORIGINS</span> (comma-separated). If that list is empty <em>and</em> <span class="mono">ENGINE_API_KEY</span> is unset, origins become <span class="mono">*</span> so a local browser UI can attach. Methods GET/POST. Headers: Authorization, Content-Type, X-Priority, X-Phoenician-Plugin. <span class="mono">allow_credentials=False</span>.</p>
+  <p>Routers, in mount order:</p>
   <table>
-    <thead><tr><th>Value</th><th>Behaviour</th></tr></thead>
+    <thead><tr><th>Router</th><th>Auth</th><th>File</th></tr></thead>
     <tbody>
-      <tr><td><span class="mono">auto</span></td><td>Tools are injected. The model decides whether to call them.</td></tr>
-      <tr><td><span class="mono">required</span></td><td>Must complete a successful <span class="mono">web_search</span>. One forced re-ask if the first turn has no tool call. Still none → HTTP 424.</td></tr>
-      <tr><td><span class="mono">off</span></td><td>Pass-through this request. Needed for <span class="mono">stream: true</span>.</td></tr>
+      <tr><td>health</td><td>none</td><td><span class="mono">api/health.py</span></td></tr>
+      <tr><td>ui</td><td>none</td><td><span class="mono">api/ui.py</span></td></tr>
+      <tr><td>openai discovery</td><td>none</td><td><span class="mono">api/openai_compat.py</span></td></tr>
+      <tr><td>plugin</td><td><span class="mono">require_engine_key</span></td><td><span class="mono">api/plugin.py</span></td></tr>
+      <tr><td>chat</td><td>same</td><td><span class="mono">api/chat.py</span></td></tr>
+      <tr><td>primitives</td><td>same</td><td><span class="mono">api/primitives.py</span></td></tr>
+      <tr><td>compat</td><td>same</td><td><span class="mono">api/compat.py</span></td></tr>
     </tbody>
   </table>
-  <p><span class="mono">phoenician_tools: []</span> is also pass-through.</p>
-</section>
+  <p>When the key is unset, <span class="mono">require_engine_key</span> is a no-op, so plugin/chat/search are open. When the key is set, <span class="mono">/ui</span> still loads but its <span class="mono">fetch("/v1/plugin")</span> returns 401 unless the browser sends Bearer — the page explains that.</p>
 
-<section class="section" id="s3">
-  <h2>3. Mode 1 — search / fetch / research</h2>
-  <p>Code: <span class="mono">engine/api/primitives.py</span>, <span class="mono">engine/api/compat.py</span>. Plugin must be on.</p>
+  <h3><span class="mono">engine/runtime.py</span></h3>
+  <p>Process-wide handles, not a class:</p>
+  <ul>
+    <li><span class="mono">http_client</span> — the shared httpx client. <span class="mono">get_http_client()</span> raises if lifespan has not run.</li>
+    <li><span class="mono">fetch_cache</span> — created in lifespan; <span class="mono">get_fetch_cache()</span> same guard. (The ladder’s own <span class="mono">_PROCESS_CACHE</span> is what <span class="mono">fetch_url</span> uses by default.)</li>
+    <li><span class="mono">plugin_enabled</span> — Layer 1 boolean. Flipped by <span class="mono">POST /v1/plugin</span> or set from env at start.</li>
+    <li><span class="mono">capabilities</span> — filled by the canary: <span class="mono">brain_tool_calls_supported</span>, <span class="mono">canary_error</span>, <span class="mono">canary_model</span>, <span class="mono">providers</span>.</li>
+  </ul>
 
-  <h3><span class="mono">POST /v1/search</span></h3>
-<pre>{"query": "Phoenician Capital", "num_results": 8}</pre>
-  <p>Optional: <span class="mono">providers</span>, <span class="mono">domain_mode</span>, <span class="mono">recency_days</span>, <span class="mono">on_empty</span> (<span class="mono">empty</span> or <span class="mono">error</span>).</p>
-  <p>Returns <span class="mono">hits</span>, <span class="mono">providers_used</span>, <span class="mono">errors</span>, <span class="mono">confirmed</span> (URLs seen by more than one provider). No providers or all failed → 502.</p>
-
-  <h3><span class="mono">POST /v1/fetch</span></h3>
-<pre>{"url": "https://example.com", "max_chars": 8000}</pre>
-  <p>Returns title, text, final_url, is_pdf, tier, ok, error.</p>
-
-  <h3><span class="mono">POST /v1/research</span></h3>
-  <p>Search, then fetch the top organic URLs (cross-confirmed first). Returns hits and pages.</p>
-
-  <h3><span class="mono">GET /search?q=&amp;num=</span></h3>
-  <p>JSON shaped like SerpAPI: <span class="mono">organic_results</span>, <span class="mono">answer_box</span>, <span class="mono">knowledge_graph</span>, <span class="mono">related_questions</span>. Pins SerpAPI when that key exists. <span class="mono">/v1/search</span> and the chat tools always mix every configured provider.</p>
-</section>
-
-<section class="section" id="s4">
-  <h2>4. Mode 2 — chat tool loop</h2>
-  <p>Code: <span class="mono">engine/api/chat.py</span> → <span class="mono">engine/agent/loop.py</span>. Routes: <span class="mono">/v1/chat/completions</span> and <span class="mono">/chat/completions</span>.</p>
-
-  <h3>One request</h3>
-  <ol>
-    <li>Parse JSON. Read plugin + policy + <span class="mono">phoenician_tools</span>.</li>
-    <li>If <span class="mono">stream: true</span> and the loop would run → 400. Stream is pass-through only (plugin off or policy off). <span class="mono">phoenician_*</span> is stripped before upstream.</li>
-    <li>Pass-through: one POST to <span class="mono">UPSTREAM_LLM_BASE_URL</span>. No system guidance, no tools from this engine.</li>
-    <li>Loop: inject <span class="mono">web_search</span>, <span class="mono">fetch_url</span>, <span class="mono">search_and_read</span> (or the subset in <span class="mono">phoenician_tools</span>). Prepend the system rules in <span class="mono">engine/agent/prompts.py</span>. POST to the LLM.</li>
-    <li>If the reply has <span class="mono">tool_calls</span>, or DSML / <span class="mono">tool▁calls</span> markup in <span class="mono">content</span> (<span class="mono">engine/tools/dsml_fallback.py</span>), run those tools in parallel, append <span class="mono">role: tool</span>, POST again. Cap: <span class="mono">MAX_TOOL_ROUNDS</span> (6). Over <span class="mono">WEB_CONTEXT_BUDGET_CHARS</span> (150k), oldest tool text is compacted; URLs stay.</li>
-    <li>Policy <span class="mono">required</span> and no successful search → 424.</li>
-    <li>Return the last LLM JSON plus <span class="mono">phoenician_plugin</span>, <span class="mono">phoenician_tool_trace</span>, <span class="mono">phoenician_sources</span>, <span class="mono">phoenician_citations_block</span>, <span class="mono">phoenician_usage_total</span>, <span class="mono">phoenician_search_failed</span>.</li>
-  </ol>
-  <p>Client <span class="mono">Authorization</span> is dropped. Upstream gets <span class="mono">UPSTREAM_API_KEY</span>. <span class="mono">X-Priority</span> is forwarded. LLM down → 502.</p>
-  <p>The upstream model must emit OpenAI <span class="mono">tool_calls</span>. For vLLM DeepSeek Flash that means:</p>
+  <h3><span class="mono">engine/config.py</span></h3>
+  <p>Reads <span class="mono">.env</span> once via <span class="mono">load_dotenv()</span> at import. Tests mutate the <span class="mono">settings</span> singleton in place; they do not reload the environment.</p>
+  <p>Enums:</p>
+  <ul>
+    <li><span class="mono">FetchMode</span>: <span class="mono">full</span>, <span class="mono">no_browser</span>, <span class="mono">httpx_only</span>. Unknown string → <span class="mono">no_browser</span>.</li>
+    <li><span class="mono">DomainMode</span>: <span class="mono">general_research</span>, <span class="mono">ir_discovery</span>, <span class="mono">earnings_doc</span>. Unknown → <span class="mono">general_research</span>.</li>
+    <li><span class="mono">WebPolicy</span>: <span class="mono">auto</span>, <span class="mono">required</span>, <span class="mono">off</span>. Unknown → <span class="mono">auto</span>.</li>
+  </ul>
+  <p>Helpers <span class="mono">_int_env</span> / <span class="mono">_float_env</span> / <span class="mono">_bool_env</span>: empty string keeps the default. Bool true values: <span class="mono">1</span>, <span class="mono">true</span>, <span class="mono">yes</span>, <span class="mono">on</span>.</p>
+  <p>Aliases: <span class="mono">SEARCH_API_KEY</span> → <span class="mono">ENGINE_API_KEY</span>. <span class="mono">SERPAPI_API_KEY</span> → <span class="mono">SERPAPI_KEY</span>. <span class="mono">ROUTER_API_KEY</span> → <span class="mono">UPSTREAM_API_KEY</span>.</p>
+  <p><span class="mono">VLLM_REQUIRED_FLAGS</span> (reported on <span class="mono">/capabilities</span>, logged if the canary fails):</p>
 <pre>--tokenizer-mode deepseek_v4
 --tool-call-parser deepseek_v4
 --enable-auto-tool-choice
 --reasoning-parser deepseek_v4</pre>
-  <p><span class="mono">GET /capabilities</span> reports <span class="mono">brain_tool_calls_supported</span> after a 5s startup probe. Mode 1 does not use this.</p>
 
-  <h3>Tools — <span class="mono">engine/tools/</span></h3>
-  <table>
-    <thead><tr><th>Name</th><th>Does</th></tr></thead>
-    <tbody>
-      <tr><td><span class="mono">web_search(query, num_results?, recency_days?)</span></td><td>Runs the mix. Returns labeled text. Empty query or bad ints → <span class="mono">ERROR:</span> string, not a 500.</td></tr>
-      <tr><td><span class="mono">fetch_url(url, max_chars?)</span></td><td>Ladder + extract. First line <span class="mono">[PUBLIC_URL: …]</span>. Rejects non-http(s).</td></tr>
-      <tr><td><span class="mono">search_and_read(query, top_n?)</span></td><td>Search, then fetch top organics (confirmed URLs first).</td></tr>
-    </tbody>
-  </table>
-  <p>Omitted <span class="mono">phoenician_tools</span> = all three.</p>
-  <p>Optional body (stripped before upstream):</p>
-<pre>{
-  "messages": [{"role": "user", "content": "…"}],
-  "phoenician_web": {
-    "enabled": true,
-    "policy": "auto",
-    "max_search_uses": 8,
-    "max_fetches": 8,
-    "max_rounds": 6,
-    "fetch_mode": "no_browser",
-    "domain_mode": "general_research"
-  }
-}</pre>
-  <p>Citations from <span class="mono">engine/agent/citations.py</span>:</p>
-<pre>[SOURCE: Web Citation 1]
-[PUBLIC_URL: https://…]
+  <h3><span class="mono">engine/auth.py</span></h3>
+  <p>If <span class="mono">ENGINE_API_KEY</span> is empty, return immediately. Else accept <span class="mono">Authorization: Bearer &lt;key&gt;</span> or query <span class="mono">?api_key=</span> (so SerpAPI-shaped <span class="mono">GET /search</span> can drop in). Anything else → 401 <span class="mono">Missing or invalid engine API key</span>.</p>
 
-[SOURCE: {title} (Date: {date})]
-[PUBLIC_URL: https://…]</pre>
+  <h3>Startup canary — <span class="mono">run_canary</span> in <span class="mono">agent/loop.py</span></h3>
+  <p>One forced <span class="mono">web_search</span> tool-choice against the upstream model: “Call web_search with query 'phoenician capital'.” <span class="mono">max_tokens=256</span>, <span class="mono">stream=False</span>. Success = structured <span class="mono">tool_calls</span> or DSML recovery from <span class="mono">content</span>. Failure is stored; it does not disable Mode 1. Mode 2 still runs — a Brain that cannot emit tools will just answer in prose (or 424 if policy is <span class="mono">required</span>).</p>
 </section>
 
+<!-- ============================================================ -->
+<section class="section" id="s3">
+  <h2>3. Plugin — two layers</h2>
+  <p>Code: <span class="mono">engine/plugin.py</span>. HTTP: <span class="mono">engine/api/plugin.py</span>, <span class="mono">engine/api/ui.py</span>.</p>
+
+  <h3>Layer 1 — enabled or disabled</h3>
+  <p><span class="mono">plugin_enabled(web, headers)</span>:</p>
+  <ol>
+    <li>If <span class="mono">runtime.plugin_enabled</span> is False → False. A request cannot force the plugin on. Header <span class="mono">on</span> / body <span class="mono">enabled: true</span> are ignored when the process switch is off.</li>
+    <li>Header <span class="mono">X-Phoenician-Plugin</span> (any casing): <span class="mono">off</span> / <span class="mono">0</span> / <span class="mono">false</span> / <span class="mono">disabled</span> → False. <span class="mono">on</span> / <span class="mono">1</span> / <span class="mono">true</span> / <span class="mono">enabled</span> is parsed but cannot override a global off.</li>
+    <li>Body <span class="mono">phoenician_web.enabled</span>: string in <span class="mono">1/true/yes/on</span> or a boolean. Only <span class="mono">false</span> changes anything — it forces this request off.</li>
+    <li>Otherwise True.</li>
+  </ol>
+  <p>When Layer 1 is off:</p>
+  <ul>
+    <li>Mode 1: <span class="mono">require_plugin_enabled</span> raises 503 with detail <span class="mono">Internet plugin is disabled. Enable it at /ui or POST /v1/plugin {"enabled": true}.</span></li>
+    <li>Mode 2: pass-through. <span class="mono">phoenician_*</span> stripped. This engine’s tools stripped from <span class="mono">tools</span>. If that empties the list, <span class="mono">tools</span> is removed; <span class="mono">tool_choice</span> is removed when it is <span class="mono">auto</span>, <span class="mono">required</span>, or names one of our three functions. No system guidance injected.</li>
+  </ul>
+  <p>Set Layer 1 at <span class="mono">/ui</span>, <span class="mono">POST /v1/plugin {"enabled": true|false}</span> (writes <span class="mono">runtime.plugin_enabled</span>), or <span class="mono">PLUGIN_ENABLED</span> at startup.</p>
+
+  <h3>Layer 2 — intelligence (only if Layer 1 is on)</h3>
+  <p><span class="mono">intelligence_policy</span>: if Layer 1 is off, returns <span class="mono">WebPolicy.OFF</span> regardless of body. Else reads <span class="mono">phoenician_web.policy</span> or <span class="mono">DEFAULT_WEB_POLICY</span>.</p>
+  <table>
+    <thead><tr><th>Value</th><th>Behaviour</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">auto</span></td><td>Tools injected. The model decides whether to call them.</td></tr>
+      <tr><td><span class="mono">required</span></td><td>Must complete a successful <span class="mono">web_search</span> (or <span class="mono">search_and_read</span>, which calls <span class="mono">web_search</span>). One forced re-ask if the first turn has no tool call. Still none, or every provider failed → HTTP 424.</td></tr>
+      <tr><td><span class="mono">off</span></td><td>Pass-through this request. Required for <span class="mono">stream: true</span>.</td></tr>
+    </tbody>
+  </table>
+  <p><span class="mono">phoenician_tools: []</span> is also pass-through (managed tool list empty). Omitted <span class="mono">phoenician_tools</span> means all three tools. Unknown names in that list are dropped.</p>
+
+  <h3><span class="mono">plugin_status()</span></h3>
+  <p>Returns <span class="mono">enabled</span>, <span class="mono">intelligence</span> (or <span class="mono">off</span> when Layer 1 is off), <span class="mono">global_enabled</span>, <span class="mono">layers</span> (<span class="mono">1_master</span>, <span class="mono">2_intelligence</span>), and a short <span class="mono">explain</span> dict. <span class="mono">GET /v1/plugin</span> adds <span class="mono">providers</span> and <span class="mono">search_ready</span> (at least one configured provider <em>and</em> plugin on).</p>
+
+  <h3><span class="mono">engine/api/ui.py</span></h3>
+  <p><span class="mono">GET /ui</span> returns an HTML page. JS <span class="mono">GET/POST /v1/plugin</span>. 401 and network errors are shown as text, not a silent blank. Port in the snippet is substituted from <span class="mono">settings.port</span>.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="section" id="s4">
+  <h2>4. HTTP surface — every route and status</h2>
+
+  <h3>Unauthenticated (always)</h3>
+  <table>
+    <thead><tr><th>Method / path</th><th>File</th><th>Returns</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">GET /</span></td><td>health.py</td><td>Welcome: <span class="mono">search_ready</span>, plugin, providers, connect snippets, curl examples, hint if no keys.</td></tr>
+      <tr><td><span class="mono">GET /health</span></td><td>health.py</td><td><span class="mono">status: ok</span>, plugin, upstream URL, providers, fetch_mode.</td></tr>
+      <tr><td><span class="mono">GET /metrics</span></td><td>health.py</td><td>Prometheus text (<span class="mono">CONTENT_TYPE_LATEST</span>).</td></tr>
+      <tr><td><span class="mono">GET /capabilities</span></td><td>health.py</td><td>Canary result, per-provider bools, vLLM flags, tools list.</td></tr>
+      <tr><td><span class="mono">GET /ui</span></td><td>ui.py</td><td>HTML toggle.</td></tr>
+      <tr><td><span class="mono">GET /v1</span></td><td>openai_compat.py</td><td>Discovery: endpoints, snippets, notes.</td></tr>
+      <tr><td><span class="mono">GET /v1/models</span>, <span class="mono">/models</span></td><td>openai_compat.py</td><td>One model card: <span class="mono">settings.upstream_model</span>.</td></tr>
+      <tr><td><span class="mono">GET /v1/models/{id}</span></td><td>openai_compat.py</td><td>That card, or 404 <span class="mono">Unknown model</span>.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Authenticated when <span class="mono">ENGINE_API_KEY</span> is set</h3>
+  <table>
+    <thead><tr><th>Method / path</th><th>File</th><th>Success body (short)</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">GET /v1/plugin</span></td><td>plugin.py</td><td>status + providers + search_ready</td></tr>
+      <tr><td><span class="mono">POST /v1/plugin</span></td><td>plugin.py</td><td>same after writing <span class="mono">runtime.plugin_enabled</span></td></tr>
+      <tr><td><span class="mono">POST /v1/search</span></td><td>primitives.py</td><td>hits, providers_used, errors, confirmed</td></tr>
+      <tr><td><span class="mono">POST /v1/fetch</span></td><td>primitives.py</td><td>Page dict (ok may be false — still HTTP 200)</td></tr>
+      <tr><td><span class="mono">POST /v1/research</span></td><td>primitives.py</td><td>hits + pages (confirmed URLs fetched first)</td></tr>
+      <tr><td><span class="mono">GET /search</span></td><td>compat.py</td><td>SerpAPI-shaped JSON; pins SerpAPI when configured</td></tr>
+      <tr><td><span class="mono">POST /v1/chat/completions</span></td><td>chat.py</td><td>upstream JSON + phoenician_* extras</td></tr>
+      <tr><td><span class="mono">POST /chat/completions</span></td><td>chat.py</td><td>same handler</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Status codes this process emits</h3>
+  <table>
+    <thead><tr><th>Code</th><th>When</th><th>Typical detail</th></tr></thead>
+    <tbody>
+      <tr><td>400</td><td>Chat body is not JSON</td><td><span class="mono">Request body must be JSON</span></td></tr>
+      <tr><td>400</td><td>Chat <span class="mono">stream:true</span> and the loop would run</td><td><span class="mono">stream:true and the internet plugin cannot be combined yet — disable the plugin or set phoenician_web.policy to off.</span></td></tr>
+      <tr><td>400</td><td>Pydantic: empty <span class="mono">query</span> on Mode 1</td><td>validation error</td></tr>
+      <tr><td>401</td><td>Key set, missing/wrong Bearer or api_key</td><td><span class="mono">Missing or invalid engine API key</span></td></tr>
+      <tr><td>404</td><td>Unknown model id</td><td><span class="mono">Unknown model</span></td></tr>
+      <tr><td>424</td><td>policy=required and no successful search</td><td><span class="mono">model did not perform a successful web_search</span> or <span class="mono">web_search was required but every provider failed</span></td></tr>
+      <tr><td>502</td><td>Every search provider failed / none configured / pinned providers missing</td><td>the <span class="mono">ERROR: web_search unavailable (…)</span> string</td></tr>
+      <tr><td>502</td><td>Upstream LLM HTTP ≥400 or connect error</td><td><span class="mono">Upstream LLM failed: HTTP …</span> or <span class="mono">Upstream LLM unreachable (…). Search still works at POST /v1/search.</span> (If plugin off, that sentence says enable /ui instead.)</td></tr>
+      <tr><td>503</td><td>Mode 1 while plugin off</td><td>enable at /ui or POST /v1/plugin</td></tr>
+    </tbody>
+  </table>
+  <p>Failed <span class="mono">POST /v1/fetch</span> is still 200 with <span class="mono">ok: false</span> and <span class="mono">error</span>. Tool failures inside Mode 2 are strings in <span class="mono">role: tool</span>, not HTTP errors (except 424 for required search).</p>
+
+  <h3>Prometheus — <span class="mono">engine/metrics.py</span></h3>
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Labels</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">engine_requests_total</span></td><td>Counter</td><td>endpoint, status — chat uses success/error/424; search uses success/502; fetch uses success/error; research uses success</td></tr>
+      <tr><td><span class="mono">engine_active_requests</span></td><td>Gauge</td><td>chat in-flight only</td></tr>
+      <tr><td><span class="mono">engine_request_latency_seconds</span></td><td>Histogram</td><td>endpoint=chat</td></tr>
+      <tr><td><span class="mono">engine_search_total</span></td><td>Counter</td><td>provider, status=ok|error</td></tr>
+      <tr><td><span class="mono">engine_fetch_total</span></td><td>Counter</td><td>tier (httpx, curl_cffi, playwright, sec, cache, …), status=ok|error</td></tr>
+      <tr><td><span class="mono">engine_tool_rounds_total</span></td><td>Counter</td><td>incremented once per completed tool round in the loop</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
 <section class="section" id="s5">
-  <h2>5. Search</h2>
-  <p>Code: <span class="mono">engine/search/</span>. Every configured provider runs in parallel. 15s each, one retry on 429 / 5xx / timeout (<span class="mono">httputil.py</span>).</p>
-  <table>
-    <thead><tr><th>File</th><th>Env</th><th>What it returns</th></tr></thead>
-    <tbody>
-      <tr><td><span class="mono">serpapi.py</span></td><td><span class="mono">SERPAPI_KEY</span></td><td>Google organics, answer box, knowledge graph, 2 related questions, 2 news as organics. 0.4s pace between calls. JSON <span class="mono">error</span> field is a failure.</td></tr>
-      <tr><td><span class="mono">tavily.py</span></td><td><span class="mono">TAVILY_API_KEY</span></td><td>Longer excerpts. Query trimmed to 400 chars. <span class="mono">include_answer=false</span>.</td></tr>
-      <tr><td><span class="mono">brave.py</span></td><td><span class="mono">BRAVE_API_KEY</span></td><td>Web results + extra snippets + 2 news.</td></tr>
-      <tr><td><span class="mono">searxng.py</span></td><td><span class="mono">SEARXNG_URL</span></td><td>Self-hosted JSON.</td></tr>
-      <tr><td><span class="mono">google_cse.py</span></td><td>key + cx</td><td>Pin-only. Not in the default mix.</td></tr>
-    </tbody>
-  </table>
-  <p><span class="mono">merge.py</span> after fan-out:</p>
-  <ol>
-    <li>Skip a failed provider; record it in <span class="mono">errors</span>. All failed → <span class="mono">SearchUnavailable</span> (Mode 1: 502; tool: <span class="mono">ERROR: web_search unavailable (…). Do not present unverified facts as sourced.</span>).</li>
-    <li>Apply <span class="mono">domain_mode</span>.</li>
-    <li>Same URL → one hit. Lower <span class="mono">PROVIDER_PRIORITY</span> keeps <span class="mono">source</span> (SerpAPI first). Snippet replaced if the other is ≥40 characters longer. <span class="mono">also_from</span> lists the rest.</li>
-    <li>Organics round-robin: SerpAPI, Tavily, Brave, SearXNG. Cross-confirmed URLs first.</li>
-    <li>Specials (answer box / KG / related) kept beside the organic list.</li>
-  </ol>
-  <p>Dedup key: scheme + host without www + path without trailing slash, then snippet[:120].</p>
-  <p><span class="mono">query.py</span>: strip legal suffixes; build <span class="mono">site:</span> / <span class="mono">filetype:pdf</span>; optional earnings-style query list. The engine does not auto-explode a ticker into many queries unless the caller uses those helpers.</p>
-  <p><span class="mono">domain_mode</span> (<span class="mono">engine/fetch/policy.py</span>):</p>
-  <table>
-    <thead><tr><th>Mode</th><th>Dropped</th></tr></thead>
-    <tbody>
-      <tr><td><span class="mono">general_research</span></td><td>Social / spam hosts</td></tr>
-      <tr><td><span class="mono">ir_discovery</span></td><td>Aggregators + IR PDF blocklist including sec.gov</td></tr>
-      <tr><td><span class="mono">earnings_doc</span></td><td>Social only; sec.gov allowed</td></tr>
-    </tbody>
-  </table>
-  <p>Hit shape (<span class="mono">base.py</span>): title, url, snippet, source, kind, position, date, query, also_from.</p>
+  <h2>5. Mode 1 — search, fetch, research, GET /search</h2>
+  <p>Code: <span class="mono">engine/api/primitives.py</span>, <span class="mono">engine/api/compat.py</span>. Every handler calls <span class="mono">require_plugin_enabled</span> first.</p>
+
+  <h3><span class="mono">POST /v1/search</span></h3>
+  <p>Body (<span class="mono">SearchRequest</span>):</p>
+<pre>{
+  "query": "Phoenician Capital",   // required, stripped; empty → 400
+  "num_results": 8,                // 1..20
+  "providers": null,               // optional pin list
+  "domain_mode": "general_research",
+  "recency_days": null,
+  "on_empty": "empty"              // "empty" | "error"
+}</pre>
+  <p>Calls <span class="mono">run_search</span>. <span class="mono">SearchUnavailable</span> → 502. Success:</p>
+<pre>{
+  "query": "…",
+  "hits": [ { title, url, snippet, source, kind, position, date, query, also_from } ],
+  "providers_used": ["serpapi", "tavily"],
+  "errors": ["brave: failed (…)"],
+  "confirmed": ["https://…"]       // organics with also_from
+}</pre>
+  <p><span class="mono">on_empty=error</span> and zero hits after merge → 502. Default <span class="mono">empty</span> returns <span class="mono">hits: []</span>.</p>
+
+  <h3><span class="mono">POST /v1/fetch</span></h3>
+<pre>{"url": "https://example.com", "max_chars": 8000, "mode": "httpx_only", "domain_mode": "general_research"}</pre>
+  <p><span class="mono">mode</span> maps to <span class="mono">FetchMode</span> (same parser as env). Returns the <span class="mono">Page</span> dataclass as a dict: url, final_url, title, text, content_type, is_pdf, tier, ok, error.</p>
+
+  <h3><span class="mono">POST /v1/research</span></h3>
+  <p>Search, then fetch. <span class="mono">ResearchRequest</span>: query (required), <span class="mono">fetch_top</span> 1..8 (default 3), <span class="mono">max_chars_per_page</span> 200..50000 (default 8000), plus the search fields above (no <span class="mono">on_empty</span> — empty search still returns pages=[]).</p>
+  <p>URL pick: organics with a URL, sorted so <span class="mono">also_from</span> (cross-confirmed) come first, then first-seen unique URLs up to <span class="mono">fetch_top</span>. Fetches run in parallel via <span class="mono">asyncio.gather</span>. Response: query, hits, providers_used, pages[{url, title, excerpt, ok, is_pdf, tier, error}].</p>
+
+  <h3><span class="mono">GET /search?q=&amp;num=&amp;engine=&amp;api_key=</span></h3>
+  <p>Drop-in SerpAPI shape for scrapers. <span class="mono">engine</span> and <span class="mono">api_key</span> are accepted and ignored for search logic (auth still uses Bearer or <span class="mono">api_key</span>). <span class="mono">num</span> 1..20, default 10.</p>
+  <p><strong>Pins SerpAPI</strong> when that provider is configured, so answer_box / knowledge_graph / related_questions survive. If SerpAPI is not configured, <span class="mono">providers=None</span> and the default mix runs. <span class="mono">POST /v1/search</span> and the chat tools always mix; only this GET pins.</p>
+  <p><span class="mono">hits_to_serpapi_shape</span>: organics → <span class="mono">organic_results[{title, snippet, link, position}]</span>. Raw SerpAPI extras used when present; else reconstructed from Hit kinds. Related titles strip the <span class="mono">Related: </span> prefix.</p>
 </section>
 
+<!-- ============================================================ -->
 <section class="section" id="s6">
-  <h2>6. Fetch</h2>
-  <p>Code: <span class="mono">engine/fetch/</span>. Entry: <span class="mono">fetch_url()</span> in <span class="mono">ladder.py</span>.</p>
+  <h2>6. Mode 2 — chat, loop, tools, DSML</h2>
+
+  <h3>Entry — <span class="mono">engine/api/chat.py</span></h3>
+  <p>Both <span class="mono">/chat/completions</span> and <span class="mono">/v1/chat/completions</span> call <span class="mono">_handle_chat</span>.</p>
   <ol>
-    <li>Reject empty URL, social hosts, domain-mode deny list.</li>
-    <li>Cache (<span class="mono">cache.py</span>): success 1800s, failure 120s, max 256 entries.</li>
-    <li><strong>httpx</strong> — Chrome-like headers, age-gate cookies. Only advertise encodings we can decode. Brotli garbage → treat as block.</li>
-    <li>WAF / challenge (401, 403, 406, 409, 429, 503 or challenge HTML) → <strong>curl_cffi</strong> Chrome impersonation.</li>
-    <li>Thin HTML (&lt;400 chars) or IR-looking URL → <strong>Playwright</strong> if <span class="mono">FETCH_MODE=full</span> (<span class="mono">js_interact.py</span>: expanders, tabs, EN/JP/PL labels, spinners, <span class="mono">data-pdf</span>, age-gate, iframes).</li>
-    <li>PDF (<span class="mono">pdf.py</span>): pdfplumber → PyMuPDF → pypdf → pdftotext → regex. All fail → placeholder with the real URL.</li>
-    <li>SEC wrappers (<span class="mono">sec.py</span>): EX-99.1 / EX-99.2 links, EDGAR User-Agent.</li>
+    <li>Parse JSON or 400.</li>
+    <li>Lowercase-copy incoming headers (plugin header + X-Priority).</li>
+    <li><span class="mono">_should_run_loop</span>: False if Layer 2 is OFF or <span class="mono">phoenician_tools == []</span>.</li>
+    <li>If <span class="mono">stream</span> and the loop would run → 400 (see status table).</li>
+    <li>If stream: <span class="mono">_proxy_stream</span> — build request to <span class="mono">completions_url()</span> with <span class="mono">_outbound_chat_body</span> (always strip <span class="mono">phoenician_*</span>; strip engine tools if plugin off), forward bytes, media type from upstream. Upstream ≥400 → 502. Connect error → 502 with the “Search still works…” / “plugin disabled…” sentence.</li>
+    <li>If not stream: <span class="mono">run_agent_loop</span>. Map <span class="mono">RequiredSearchFailed</span> → 424. Upstream HTTPStatusError / RequestError → 502.</li>
+    <li>Wrap the last upstream JSON and add extras only when they exist:
+      <span class="mono">phoenician_plugin</span> (always on a successful loop return),
+      <span class="mono">phoenician_tool_trace</span> + <span class="mono">phoenician_usage_total</span> if any tools ran,
+      <span class="mono">phoenician_sources</span>,
+      <span class="mono">phoenician_citations_block</span>,
+      <span class="mono">phoenician_search_failed</span>.</li>
   </ol>
-  <p>Extract (<span class="mono">extract.py</span>): Trafilatura markdown, then HTML-to-text fallback. Caps: 8k HTML, 25k PDF, 25 MB download, 20s timeout.</p>
-  <p><span class="mono">FETCH_MODE</span>: <span class="mono">no_browser</span> (httpx + curl_cffi), <span class="mono">httpx_only</span>, <span class="mono">full</span> (needs Chromium).</p>
-  <p>Page shape: url, final_url, title, text, content_type, is_pdf, tier, ok, error.</p>
+  <p>Metrics: <span class="mono">ACTIVE_REQUESTS</span> ±1 around the try; latency observed on <span class="mono">chat</span>; <span class="mono">REQUESTS_TOTAL</span> status success / error / 424.</p>
+
+  <h3>Loop — <span class="mono">engine/agent/loop.py</span></h3>
+  <p><span class="mono">run_agent_loop(client, body, headers)</span>:</p>
+  <ol>
+    <li><span class="mono">_strip_extensions</span>: pop <span class="mono">phoenician_tools</span> and <span class="mono">phoenician_web</span>. None tools → all three. Filter to names in <span class="mono">TOOL_SCHEMAS</span>.</li>
+    <li>If Layer 1 off, or policy OFF, or managed list empty: optionally <span class="mono">strip_engine_tools</span> (Layer 1 off only), one <span class="mono">post_completion</span>, return. No guidance, no tools from us. <span class="mono">intelligence</span> on the result is <span class="mono">off</span>.</li>
+    <li>Parse <span class="mono">domain_mode</span>, optional per-request <span class="mono">fetch_mode</span>, optional <span class="mono">providers</span> (must be a list or it is ignored).</li>
+    <li><span class="mono">ToolBudget.from_web_options(web)</span> — explicit <span class="mono">0</span> is honored for search/fetch/chars; <span class="mono">max_rounds</span> is at least 1.</li>
+    <li>Build <span class="mono">ToolExecutor</span>. <span class="mono">_inject_tools</span> appends missing schemas; <span class="mono">tool_choice</span> defaults to <span class="mono">auto</span>.</li>
+    <li><span class="mono">inject_system_guidance</span> prepends or merges <span class="mono">WEB_SYSTEM_MESSAGE</span>.</li>
+    <li>Force <span class="mono">stream: False</span>. Default model = <span class="mono">UPSTREAM_MODEL</span>.</li>
+    <li>First <span class="mono">post_completion</span>.</li>
+    <li>While <span class="mono">rounds &lt; budget.max_rounds</span>:
+      <ul>
+        <li>Take <span class="mono">choices[0]</span>. Missing choices → <span class="mono">[{}]</span> then empty message — treated as no tool calls (loop exits, unless required re-ask).</li>
+        <li><span class="mono">_message_tool_calls</span>: use structured <span class="mono">tool_calls</span>, else <span class="mono">recover_tool_calls(content)</span>. On recovery, write <span class="mono">tool_calls</span> onto the message and set <span class="mono">content</span> to <span class="mono">None</span> so markup is not treated as the answer.</li>
+        <li>No calls + policy required + not yet re-asked + <span class="mono">not executor.search_succeeded</span>: append the assistant message, append user <span class="mono">FORCE_SEARCH_NUDGE</span> (“You must call the web_search tool before answering. Search now.”), set <span class="mono">tool_choice</span> to force <span class="mono">web_search</span>, POST again, <span class="mono">continue</span> (does not increment <span class="mono">rounds</span>).</li>
+        <li>No calls otherwise → break.</li>
+        <li>Clear <span class="mono">tool_choice</span> back to <span class="mono">auto</span> (so a forced re-ask does not stick).</li>
+        <li>Append the assistant message. Run every call in parallel (<span class="mono">asyncio.gather</span>). Unknown or unmanaged name → <span class="mono">ERROR: tool '…' is not available. Do not present unverified facts as sourced.</span></li>
+        <li>Append <span class="mono">role: tool</span> with <span class="mono">tool_call_id</span>. Record trace {tool, arguments}.</li>
+        <li><span class="mono">budget.trim_tool_messages</span>. POST again. <span class="mono">rounds += 1</span>. Increment <span class="mono">TOOL_ROUNDS</span>.</li>
+      </ul>
+    </li>
+    <li>After the loop: if policy required and still no <span class="mono">search_succeeded</span> → raise <span class="mono">RequiredSearchFailed</span> (reason depends on <span class="mono">search_failed</span>).</li>
+  </ol>
+  <p>Arguments that are not JSON objects become <span class="mono">{}</span> (<span class="mono">_parse_args</span>); the tool then fail-closes on empty query / bad URL rather than 500.</p>
+
+  <h3>System prompt — <span class="mono">engine/agent/prompts.py</span></h3>
+  <p><span class="mono">WEB_SYSTEM_MESSAGE</span> tells the model: decide whether this question needs the live web; search for current / company / filing facts; skip greetings, pure math, uncited general knowledge; use the three tools; prefer official filings; never invent URLs; treat <span class="mono">ERROR:</span> as hard failure; start the answer with no preamble; no trailing Sources section. If the caller already sent a system message, guidance is prepended (unless already present). Otherwise a new system message is inserted at the front.</p>
+
+  <h3>Upstream HTTP — <span class="mono">engine/agent/upstream.py</span></h3>
+  <p><span class="mono">completions_url</span>: if the base already ends with <span class="mono">/chat/completions</span>, use it; if it ends with <span class="mono">/v1</span>, append <span class="mono">/chat/completions</span>; else append <span class="mono">/v1/chat/completions</span>.</p>
+  <p><span class="mono">auth_headers</span>: drop host, content-length, authorization, connection from the incoming request. Set Content-Type JSON. If <span class="mono">UPSTREAM_API_KEY</span> is set, send that Bearer (client Authorization is never forwarded). <span class="mono">X-Priority</span> survives because it is not in the drop set — ai-router reads it.</p>
+  <p><span class="mono">post_completion</span> raises on non-2xx. Usage helpers sum prompt/completion/total across rounds; missing usage counts as zeros.</p>
+
+  <h3>Citations — <span class="mono">engine/agent/citations.py</span></h3>
+  <p>From <span class="mono">executor.sources</span> (unique URLs recorded on successful search hits and successful fetches). Two blocks concatenated: numbered <span class="mono">[SOURCE: Web Citation N]</span> + <span class="mono">[PUBLIC_URL:]</span>, then titled <span class="mono">[SOURCE: {title} (Date: {date})]</span>. Entries without a URL are skipped. Empty → <span class="mono">""</span>.</p>
+
+  <h3>Tool schemas — <span class="mono">engine/tools/schemas.py</span></h3>
+  <table>
+    <thead><tr><th>Name</th><th>Required</th><th>Optional</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">web_search</span></td><td>query</td><td>num_results, recency_days</td></tr>
+      <tr><td><span class="mono">fetch_url</span></td><td>url</td><td>max_chars</td></tr>
+      <tr><td><span class="mono">search_and_read</span></td><td>query</td><td>top_n</td></tr>
+    </tbody>
+  </table>
+  <p>Descriptions tell the model the mix is blended, sources stay visible, and <span class="mono">search_and_read</span> saves a round. <span class="mono">DEFAULT_TOOLS</span> = all three.</p>
+
+  <h3>Dispatch — <span class="mono">engine/tools/execute.py</span></h3>
+  <p><span class="mono">_opt_int</span>: None/"" → default; non-int → default; then clamp lo/hi. Used so garbage arguments become an ERROR string, not a 500.</p>
+  <p><span class="mono">web_search</span>: empty query → fail-closed search. Budget check before the call; <span class="mono">note_search</span> after allow. <span class="mono">num_results</span> 1..20 (default 8). <span class="mono">SearchUnavailable</span> or any exception → <span class="mono">search_failed=True</span> and the ERROR string. Success → <span class="mono">search_succeeded=True</span>, record hits, <span class="mono">format_hits_for_model</span>.</p>
+  <p><span class="mono">fetch</span>: budget; URL must be absolute http(s) with a host; then <span class="mono">fetch_url</span>. Failed pages still format as <span class="mono">[PUBLIC_URL: …]</span> plus the fail-closed fetch line. Successful pages record a source with <span class="mono">source=fetch:{tier}</span>.</p>
+  <p><span class="mono">search_and_read</span>: empty query → error. <span class="mono">top_n</span> 1..8 (default 3). Calls <span class="mono">web_search</span>; if that returned <span class="mono">ERROR:</span>, stop. Else take organics, confirmed first, unique URLs, fetch each, concatenate under <span class="mono">--- fetched pages ---</span>.</p>
+  <p>Unknown tool name → the same ERROR string as the loop’s unmanaged-tool path.</p>
+
+  <h3>DSML fallback — <span class="mono">engine/tools/dsml_fallback.py</span></h3>
+  <p>Used when <span class="mono">tool_calls</span> is empty. Only recovers names in <span class="mono">{web_search, fetch_url, search_and_read}</span>. Dedup by (name, arguments JSON).</p>
+  <p>Three markup families (fullwidth <span class="mono">｜</span> or ASCII <span class="mono">|</span>):</p>
+  <ol>
+    <li>Closed DSML invoke: <span class="mono">&lt;｜DSML｜invoke name="web_search"&gt;…&lt;｜DSML｜parameter name="query"&gt;…&lt;/…parameter&gt;…&lt;/…invoke&gt;</span>. Loose parameter regex if the closer is missing. If no parameters, the stripped inner text becomes <span class="mono">query</span>. If web_search has params but no <span class="mono">query</span> key, the first value is used as query.</li>
+    <li>Open invoke without a closer: slice to the next invoke or end of string; same parameter parse; require non-empty args.</li>
+    <li>Tokenizer blocks: <span class="mono">&lt;|tool▁calls▁begin|&gt;…&lt;|tool▁calls▁end|&gt;</span> containing <span class="mono">tool▁call▁begin/end</span>. Name from <span class="mono">&lt;|tool▁sep|&gt;</span> or a line that matches a known tool. Arguments from JSON, a fenced <span class="mono">```json</span> blob, or the first <span class="mono">{…}</span>. web_search without a query key is skipped in this family.</li>
+  </ol>
+  <p>Recovered calls get ids <span class="mono">dsml_</span> + 12 hex chars, type function, arguments as a JSON string.</p>
 </section>
 
+<!-- ============================================================ -->
 <section class="section" id="s7">
-  <h2>7. What is in the repo</h2>
-<pre>engine/                 the service
-  __main__.py           python -m engine  →  setup | check | run
-  main.py               FastAPI app, lifespan, CORS, routers
-  config.py             env → Settings, FetchMode / DomainMode / WebPolicy
-  runtime.py            shared httpx client, fetch cache, plugin_enabled, capabilities
-  plugin.py             layer 1 + layer 2
-  auth.py               Bearer ENGINE_API_KEY; GET /search also accepts api_key=
-  errors.py             SearchUnavailable, RequiredSearchFailed, ERROR: strings
-  budget.py             per-request search/fetch/round/char caps + compaction
-  metrics.py            Prometheus
-  connect.py            client snippets on GET /
-  setup.py              create .env from example, print connect info
-  search/               providers + merge
-  fetch/                download + extract
-  tools/                schemas, execute, DSML
-  agent/                loop, upstream HTTP, prompts, citations
-  api/                  HTTP routes
-tests/                  pytest
-scripts/                check_search.py, smoke.py, install.sh
-docs/                   this file, render_pdf.py
-</pre>
+  <h2>7. Search mix — providers, merge, query</h2>
+  <p>Package: <span class="mono">engine/search/</span>. Public exports: <span class="mono">Hit</span>, <span class="mono">SearchOutcome</span>, <span class="mono">run_search</span>.</p>
 
-  <h3>engine/ (root modules)</h3>
-  <table>
-    <thead><tr><th>File</th><th>What it does</th></tr></thead>
-    <tbody>
-      <tr><td><span class="mono">main.py</span></td><td>Creates the httpx client and fetch cache. Copies <span class="mono">PLUGIN_ENABLED</span> into <span class="mono">runtime.plugin_enabled</span>. Optional background canary. Mounts health, ui, openai discovery, plugin, chat, primitives, compat. CORS <span class="mono">*</span> when no API key.</td></tr>
-      <tr><td><span class="mono">config.py</span></td><td>Reads <span class="mono">.env</span> once. Tests mutate the singleton.</td></tr>
-      <tr><td><span class="mono">plugin.py</span></td><td><span class="mono">plugin_enabled(web, headers)</span>, <span class="mono">intelligence_policy</span>, <span class="mono">require_plugin_enabled</span> → 503.</td></tr>
-      <tr><td><span class="mono">auth.py</span></td><td>No-op if key unset. Else Bearer or <span class="mono">?api_key=</span>.</td></tr>
-      <tr><td><span class="mono">errors.py</span></td><td>Fail strings. Never “own knowledge”.</td></tr>
-      <tr><td><span class="mono">budget.py</span></td><td><span class="mono">from_web_options</span> honors explicit 0. <span class="mono">max_rounds</span> at least 1. Compacts oldest <span class="mono">role=tool</span> content over the char budget.</td></tr>
-      <tr><td><span class="mono">agent/upstream.py</span></td><td>Builds <span class="mono">…/v1/chat/completions</span> from the base URL. Drops host/content-length/authorization. Sums token usage.</td></tr>
-      <tr><td><span class="mono">agent/prompts.py</span></td><td>System text: decide whether this question needs the web; do not invent URLs; treat ERROR as failure.</td></tr>
-    </tbody>
-  </table>
+  <h3>Hit contract — <span class="mono">base.py</span></h3>
+  <p>Fields: title, url, snippet, source, kind (<span class="mono">organic</span> | <span class="mono">answer_box</span> | <span class="mono">knowledge_graph</span> | <span class="mono">related_question</span>), position, date, query, also_from.</p>
+  <p><span class="mono">ALL_PROVIDERS</span> = serpapi, brave, tavily, searxng, google_cse.</p>
+  <p><span class="mono">DEFAULT_FANOUT</span> (blend order) = serpapi, tavily, brave, searxng. CSE is pin-only.</p>
+  <p><span class="mono">PROVIDER_PRIORITY</span> (lower wins the <span class="mono">source</span> label on merge): serpapi 0, tavily 1, brave 2, google_cse 3, searxng 4.</p>
+  <p><span class="mono">canonical_url</span>: scheme (default https) + host without www + path without trailing slash. Query string dropped. This is the dedup key.</p>
+  <p><span class="mono">snippet_key</span>: first 120 chars of snippet, or the canonical URL if snippet is empty.</p>
+  <p><span class="mono">SearchOutcome.failed</span> is True only when there are errors and zero <span class="mono">providers_used</span> (empty hits after a live provider are OK).</p>
 
-  <h3>engine/api/</h3>
-  <table>
-    <thead><tr><th>File</th><th>Routes</th></tr></thead>
-    <tbody>
-      <tr><td><span class="mono">health.py</span></td><td><span class="mono">/</span>, <span class="mono">/health</span>, <span class="mono">/metrics</span>, <span class="mono">/capabilities</span></td></tr>
-      <tr><td><span class="mono">ui.py</span></td><td><span class="mono">GET /ui</span> — HTML toggle</td></tr>
-      <tr><td><span class="mono">plugin.py</span></td><td><span class="mono">GET/POST /v1/plugin</span></td></tr>
-      <tr><td><span class="mono">openai_compat.py</span></td><td><span class="mono">/v1/models</span>, <span class="mono">/models</span>, <span class="mono">/v1</span></td></tr>
-      <tr><td><span class="mono">chat.py</span></td><td>Completions; stream proxy; 424/502 mapping</td></tr>
-      <tr><td><span class="mono">primitives.py</span></td><td><span class="mono">/v1/search</span>, <span class="mono">/v1/fetch</span>, <span class="mono">/v1/research</span></td></tr>
-      <tr><td><span class="mono">compat.py</span></td><td><span class="mono">GET /search</span></td></tr>
-    </tbody>
-  </table>
-  <p>Open without a key: health, ui, models. The rest use auth when <span class="mono">ENGINE_API_KEY</span> is set.</p>
+  <h3>HTTP to providers — <span class="mono">httputil.py</span></h3>
+  <p><span class="mono">request_json</span>: attempts = 1 + <span class="mono">SEARCH_PROVIDER_RETRIES</span> (default 1 → two tries). Retry on 429/500/502/503 and on timeout / network / remote-protocol. Sleep 0.35 × attempt. Then <span class="mono">raise_for_status</span> and <span class="mono">.json()</span>. Timeout default <span class="mono">SEARCH_PROVIDER_TIMEOUT</span> (15s). CSE uses <span class="mono">max(that, 20)</span>.</p>
 
-  <h3>engine/search/</h3>
-  <p>One file per provider. <span class="mono">enabled()</span> is “key present”. <span class="mono">merge.run_search</span> is the only fan-out. <span class="mono">format_hits_for_model</span> prints labeled blocks the LLM reads.</p>
+  <h3>Resolve which providers run — <span class="mono">merge.resolve_providers</span></h3>
+  <ul>
+    <li>No request pin → every name in <span class="mono">DEFAULT_FANOUT</span> that is <span class="mono">enabled()</span>.</li>
+    <li>Pin list: keep known names that are configured. Unknown names are logged. If the caller named only unknown providers → <span class="mono">SearchUnavailable</span>. If they named known providers but none are configured → <span class="mono">SearchUnavailable</span> listing what is configured.</li>
+    <li>Zero configured and no pin → <span class="mono">SearchUnavailable</span> (“set SERPAPI_KEY, BRAVE_API_KEY, TAVILY_API_KEY, or SEARXNG_URL”).</li>
+  </ul>
 
-  <h3>engine/fetch/</h3>
-  <p><span class="mono">policy.py</span> — deny lists, WAF markers, IR/SEC predicates, default headers. <span class="mono">urlutil.py</span> — resolve hrefs, detect PDF URLs, title/canonical. <span class="mono">ladder.py</span> — tier selection.</p>
+  <h3>Fan-out — <span class="mono">run_search</span></h3>
+  <p>All selected providers run in parallel (<span class="mono">asyncio.gather(..., return_exceptions=True)</span>). One failure is appended to <span class="mono">outcome.errors</span> as <span class="mono">{name}: failed (…)</span> and skipped. If none succeed → <span class="mono">SearchUnavailable</span>. SerpAPI extras (answer_box, knowledge_graph, related_questions, raw payload) are copied onto the outcome when that provider ran.</p>
+  <p>Then: <span class="mono">dedup_hits</span> → <span class="mono">apply_domain_mode</span> → organics <span class="mono">blend_organics(..., num_results)</span> + specials appended unchanged. <span class="mono">on_empty=error</span> with no hits → unavailable.</p>
 
-  <h3>engine/tools/</h3>
-  <p><span class="mono">schemas.py</span> — OpenAI function JSON. <span class="mono">execute.py</span> — dispatch, budget, source list. <span class="mono">dsml_fallback.py</span> — recover tool calls from model text.</p>
+  <h3>Same-URL merge — <span class="mono">_merge_organic</span> / <span class="mono">collapse_organics</span></h3>
+  <p>Primary = lower <span class="mono">PROVIDER_PRIORITY</span> (SerpAPI wins the source label). Snippet replaced only if the other snippet is ≥ 40 characters longer. <span class="mono">also_from</span> collects the other source(s). Title/URL/date/position fall back to the other if the primary is empty. Non-organics are not collapsed here.</p>
 
-  <h3>tests/ and scripts/</h3>
-  <p><span class="mono">pytest</span> — no live keys. <span class="mono">scripts/check_search.py</span> — live Mode 1 (engine or direct). <span class="mono">scripts/smoke.py</span> — live Mode 2 against a running Brain. <span class="mono">scripts/install.sh</span> — venv + deps.</p>
+  <h3>Dedup — <span class="mono">dedup_hits</span></h3>
+  <p>After collapse: drop an organic if its canonical URL or snippet key was already kept. Specials dedup on <span class="mono">kind:url_or_snippet</span>.</p>
+
+  <h3>Blend — <span class="mono">blend_organics</span></h3>
+  <p>Split into confirmed (<span class="mono">also_from</span> non-empty) vs unique, each grouped by source. Each group sorted by position. Round-robin in DEFAULT_FANOUT order (then any leftover source names). Fill confirmed first up to <span class="mono">num_results</span>, then unique. <span class="mono">num_results</span> is at least 1.</p>
+
+  <h3>Domain filter — <span class="mono">apply_domain_mode</span></h3>
+  <p>Uses <span class="mono">host_denied</span> from <span class="mono">fetch/policy.py</span> (same lists as fetch). Denied hits are dropped, not errored.</p>
+
+  <h3>Text for the model — <span class="mono">format_hits_for_model</span></h3>
+  <p>Header <span class="mono">Web search results for: {query}</span>. Provider warnings listed if any. Groups labeled <span class="mono">[source:kind]</span>. Each hit: title, optional date, <span class="mono">[also a, b]</span>, snippet, URL. Zero hits: <span class="mono">No results.</span> plus partial errors if present.</p>
+
+  <h3>SerpAPI — <span class="mono">serpapi.py</span></h3>
+  <p>Enabled when <span class="mono">SERPAPI_KEY</span> is set. GET <span class="mono">https://serpapi.com/search</span> with engine=google, hl=en, gl=us, num, optional <span class="mono">tbs</span> from <span class="mono">serpapi_tbs_for_recency</span> (≤1 day <span class="mono">qdr:d</span>, ≤7 <span class="mono">qdr:w</span>, ≤31 <span class="mono">qdr:m</span>, else <span class="mono">qdr:y</span>). Payload JSON <span class="mono">error</span> field → raise (counts as provider failure).</p>
+  <p>Pace: process-wide lock; wait until <span class="mono">SERPAPI_PACE_SECONDS</span> (0.4) since the last call. Tests set this to 0.</p>
+  <p>Parse: organics (dedup inside this payload by url / snippet[:120]); answer_box as kind answer_box; knowledge_graph title+description+attributes; first 2 news_results as organics at position 50+; first 2 related_questions as kind related_question titled <span class="mono">Related: {q[:60]}</span>.</p>
+  <p>Returns <span class="mono">(hits, extras)</span> — the only provider with that signature. <span class="mono">_call_provider</span> special-cases it.</p>
+
+  <h3>Tavily — <span class="mono">tavily.py</span></h3>
+  <p>POST <span class="mono">https://api.tavily.com/search</span>. Query trimmed to 400 chars; empty → raise. Depth from <span class="mono">TAVILY_SEARCH_DEPTH</span> if it is one of ultra-fast / fast / basic / advanced, else advanced. <span class="mono">include_answer=false</span> (the Brain synthesizes). <span class="mono">chunks_per_source</span> 5 for advanced/fast, else 3. Recency → time_range day/week/month/year. JSON error/detail → raise. Parser still accepts an <span class="mono">answer</span> string as an answer_box hit if the API sends one. Organics use <span class="mono">content</span> or <span class="mono">raw_content</span>, date = published_date.</p>
+
+  <h3>Brave — <span class="mono">brave.py</span></h3>
+  <p>GET <span class="mono">https://api.search.brave.com/res/v1/web/search</span> with <span class="mono">X-Subscription-Token</span>. count ≤20, extra_snippets=true, text_decorations=false, safesearch=off. Freshness: pd / pw / pm / py. Error field is fatal only when there are no web results. Snippet = description + extra_snippets. First 2 news results appended as organics (position 40+) if the URL was not already seen.</p>
+
+  <h3>SearXNG — <span class="mono">searxng.py</span></h3>
+  <p>Enabled when <span class="mono">SEARXNG_URL</span> is set. GET <span class="mono">{url}/search</span> format=json, categories=general, language=en. Recency → time_range day/week/month/year. Hits from results[].title / url / content|snippet.</p>
+
+  <h3>Google CSE — <span class="mono">google_cse.py</span></h3>
+  <p>Enabled only when both <span class="mono">GOOGLE_API_KEY</span> and <span class="mono">GOOGLE_SEARCH_ENGINE_ID</span> are set. GET customsearch/v1, num ≤10. Not in the default fan-out; only runs if the caller pins <span class="mono">google_cse</span>. Recency is ignored (API has no mapping here).</p>
+
+  <h3>Query helpers — <span class="mono">query.py</span></h3>
+  <p>Not called automatically by <span class="mono">run_search</span>. Callers (or future pipelines) import them.</p>
+  <ul>
+    <li><span class="mono">clean_company</span> — strip PLC/plc/Inc/Limited/Ltd/Group/Corp/Corporation/S.A./SA/ASA…</li>
+    <li><span class="mono">host_from_url</span> / <span class="mono">site_query</span> — <span class="mono">site:{host} {rest}</span></li>
+    <li><span class="mono">filetype_pdf</span> — append <span class="mono">filetype:pdf</span> unless already present</li>
+    <li><span class="mono">quarter_num</span> — first digit 1–4 in the quarter string</li>
+    <li><span class="mono">build_simple_queries(ticker, company, quarter, year, ir_domain?)</span> — up to 15 strings: quoted company/ticker + 1Q25 / Q1 2025 / results / earnings release, optional site:IR and q4cdn.com / mziq.com PDF queries. Deduped. Judgment stays with the caller; this only builds strings.</li>
+    <li>Recency mappers used by SerpAPI and Brave (see above).</li>
+  </ul>
 </section>
 
+<!-- ============================================================ -->
 <section class="section" id="s8">
-  <h2>8. Environment</h2>
+  <h2>8. Fetch ladder — policy, tiers, PDF, SEC, JS</h2>
+  <p>Entry: <span class="mono">fetch_url()</span> in <span class="mono">engine/fetch/ladder.py</span>. Public package export: <span class="mono">Page</span>, <span class="mono">fetch_url</span>.</p>
+
+  <h3>Page</h3>
+  <p>url, final_url, title, text, content_type, is_pdf, tier, ok, error. <span class="mono">to_dict()</span> is <span class="mono">dataclasses.asdict</span>.</p>
+
+  <h3>Gate + cache</h3>
+  <ol>
+    <li>Empty URL → failed page “empty url”.</li>
+    <li><span class="mono">should_skip_fetch</span> (facebook.com / twitter.com / instagram.com, including subdomains) → “blocked social domain”.</li>
+    <li><span class="mono">host_denied(url, domain_mode)</span> → that reason string.</li>
+    <li>Cache hit on the requested URL (module <span class="mono">_PROCESS_CACHE</span> unless a cache is passed). Metric tier=cache.</li>
+    <li>Otherwise <span class="mono">_fetch_uncached</span>; unexpected exceptions become a failed page; result stored with ok-based TTL.</li>
+  </ol>
+
+  <h3>Cache — <span class="mono">cache.py</span></h3>
+  <p>Thread-safe dict, monotonic deadlines. Success TTL 1800s, failure 120s, max 256 keys. <span class="mono">set</span> evicts expired keys, then the soonest-to-expire if still full. <span class="mono">get</span> / <span class="mono">has</span> drop expired. Hits/misses counters. Tests clear this in the autouse fixture.</p>
+
+  <h3>Policy — <span class="mono">policy.py</span></h3>
+  <p><span class="mono">deny_list_for</span>:</p>
+  <ul>
+    <li><span class="mono">general_research</span> and <span class="mono">earnings_doc</span>: <span class="mono">SOCIAL_SPAM_DOMAINS</span> only — facebook.com, instagram.com, twitter.com, x.com, tiktok.com.</li>
+    <li><span class="mono">ir_discovery</span>: union (deduped) of IR_DISCOVERY_BLOCKLIST + AGGREGATOR_DOMAINS + SOCIAL_SPAM. IR list includes yahoo, bloomberg, <strong>sec.gov / edgar.sec.gov</strong>, nasdaq, nyse, asx, marketwatch, annualreports, morningstar, reuters, investing, fool, seekingalpha. Aggregators include wikipedia, linkedin, reuters, google, youtube, marketscreener, ft, wsj, tradingview, cnbc, crunchbase, PR wires, seekingalpha, fool, barrons, forbes, tipranks, finance.yahoo, msn, and the rest listed in the file. SEC is blocked in IR discovery; earnings_doc allows it.</li>
+  </ul>
+  <p>Host match: exact or subdomain (<span class="mono">host.endswith("." + domain)</span>). www. stripped first.</p>
+  <p><span class="mono">ALWAYS_SKIP_FETCH</span> (all modes, before deny lists): facebook.com, twitter.com, instagram.com.</p>
+  <p>WAF: status in {401, 403, 406, 409, 429, 503} or first 5 kB of body containing any of: “please verify you are a human”, “attention required! | cloudflare”, “sucuri website firewall”, “pardon the interruption”, “are you a robot”, “403 forbidden”.</p>
+  <p>Age-gate cookies attached on every httpx GET: age_verified / over18 / legal_age / is_over_18 = true.</p>
+  <p>Headers: Chrome 122 UA, HTML Accept, en-US, <span class="mono">Accept-Encoding</span> from <span class="mono">supported_accept_encoding()</span> — gzip, deflate, and <span class="mono">br</span> only if <span class="mono">brotli</span> or <span class="mono">brotlicffi</span> import. Advertising br without a decoder used to leave compressed bytes treated as page text.</p>
+  <p><span class="mono">is_ir_url</span>: “ir.” or “investor” in the URL. <span class="mono">is_sec_wrapper_url</span>: sec.gov, or cdn.yahoofinance.com with sec-filings.</p>
+
+  <h3>Ladder — <span class="mono">_fetch_uncached</span></h3>
+  <p>SEC URLs use <span class="mono">sec_headers()</span> (descriptive EDGAR UA). PDF-looking URLs use PDF Accept/Referer headers.</p>
+  <ol>
+    <li><strong>Direct PDF</strong> (URL looks like PDF, not sec.gov): <span class="mono">_download_pdf_resilient</span> — httpx; if 200 and magic/ctype look like PDF, parse. If blocked status or HTTP error, curl_cffi (unless httpx_only), then Playwright PDF GET (if full). Returns that Page or None (fall through).</li>
+    <li><strong>IR HTML + FETCH_MODE=full</strong>: Playwright first. If rendered text ≥ <span class="mono">THIN_HTML_CHAR_THRESHOLD</span> (400), return tier=playwright. Otherwise continue.</li>
+    <li><strong>Tier 1 httpx</strong>. Status ≥400 that is not a bot-block status → failed Page immediately (no escalate). Bot-block status or challenge HTML or undecodable body (null bytes or &lt;85% printable in first 500 chars — typically raw brotli) → escalate. Success:
+      <ul>
+        <li>SEC wrapper HTML → <span class="mono">handle_sec</span>; if text, return tier=sec.</li>
+        <li>Else extract. If HTML is thin and mode is full, try Playwright and keep it if longer; else return the thin httpx page.</li>
+      </ul>
+    </li>
+    <li><strong>Tier 2 curl_cffi</strong> (not httpx_only): impersonate Chrome. Status 200 + body → Page tier=curl_cffi.</li>
+    <li><strong>Tier 3 Playwright</strong> (full only): PDF path uses <span class="mono">playwright_pdf</span>; HTML uses <span class="mono">playwright_fetch</span>.</li>
+    <li>Else failed “all fetch tiers failed (last_status=N)”.</li>
+  </ol>
+  <p><span class="mono">looks_like_pdf</span>: body starts with <span class="mono">%PDF</span>, or Content-Type contains pdf and the body is not HTML, or URL says PDF and magic matches.</p>
+  <p>Caps: <span class="mono">max_chars</span> if passed, else 8000 HTML / 25000 PDF. Download hard cap for PDF parse is <span class="mono">MAX_PDF_BYTES</span> (25 MB) — larger PDFs skip parsers and return None from <span class="mono">pdf_to_text</span>, which becomes empty text then the placeholder in the parser.</p>
+
+  <h3>Playwright HTML — <span class="mono">playwright_fetch</span> + <span class="mono">js_interact.py</span></h3>
+  <p>Headless Chromium, UA + 1280×800, age cookies, <span class="mono">goto</span> wait_until=domcontentloaded (timeout <span class="mono">HEADLESS_RENDER_TIMEOUT_MS</span>, 15s). On goto failure, try the origin/referer. Then <span class="mono">dismiss_age_gate</span> then <span class="mono">interact_page</span>.</p>
+  <p><span class="mono">interact_page</span>:</p>
+  <ol>
+    <li>Wait networkidle 4s (ignore timeout). Wait spinners hidden 1.5s (selectors: .loading, .spinner, .loader, .is-loading, [class*='loading|spinner|loader'], [aria-busy=true]).</li>
+    <li>If URL fragment, scroll that id/name into view.</li>
+    <li>Scroll to bottom and back. Snapshot HTML + same-origin iframes (skip about:/data:, skip frames &lt;200 chars). Iframe HTML has links absolutized. Snapshots hashed; duplicates dropped. Joined later with <span class="mono">&lt;!-- interaction-snapshot --&gt;</span> / <span class="mono">&lt;!-- iframe-snapshot --&gt;</span>.</li>
+    <li>Click expanders by accessible name (max 8 clicks, 2 per pattern): load/show/view/see more, view/show/see all, more results, more, read more, expand, older, archive, and Japanese もっと見る / 一覧 / すべて / さらに表示 / 過去 / もっと読む. Roles button and link. 400ms pause + snapshot after each click.</li>
+    <li>Click tabs: CSS list (role=tab, aria-expanded=false, Bootstrap/nav-tabs, accordion titles, data-tab / data-toggle=tab) up to 12, then label regexes (financial results, quarterly, interim, annual report, presentations, earnings, Polish raporty…, Japanese 決算 / 四半期 / 有価証券報告書 / 決算短信 / 適時開示 / IR資料 / 財務 / 報告書) up to 16 total tab clicks.</li>
+    <li>Harvest JS: every <span class="mono">a[href]</span>, data-url / data-href / data-pdf / data-file / data-src / data-download / data-document / data-link / data-target-url / data-attachment / data-doc, any data-* containing http or .pdf, and http URLs inside onclick. Keep PDFs and hosts matching xj-storage.jp, /xcontents/, irpocket, q4cdn, mziq, cloudfront, /documents/, /attachment, filedownload. Append a tiny HTML blob of those anchors labeled harvested-dynamic-links.</li>
+  </ol>
+  <p>Age-gate clicks (first match wins): I am over 21/18, legal age, yes, enter, verify, confirm, I agree, agree, continue — button or link.</p>
+
+  <h3>PDF — <span class="mono">pdf.py</span></h3>
+  <p>Singleton <span class="mono">pdf_parser</span>. Order, first success wins:</p>
+  <ol>
+    <li>pdfplumber — extract_text per page, join with newlines.</li>
+    <li>PyMuPDF (fitz) — get_text per page.</li>
+    <li>pypdf PdfReader(strict=False) — per-page extract, skip pages that throw.</li>
+    <li>poppler <span class="mono">pdftotext -layout</span> via temp files (30s). Missing binary → skip.</li>
+    <li>latin-1 decode + regex of readable runs; keep if &gt;100 chars (<span class="mono">raw_regex</span>).</li>
+  </ol>
+  <p>All fail → literal <span class="mono">This document is a PDF report available at: {url}</span> (the real URL, not invented text). Whitespace collapsed. Oversize body → None (then the placeholder path). Logs which parser won.</p>
+
+  <h3>SEC — <span class="mono">sec.py</span></h3>
+  <p>UA: <span class="mono">SEC_EDGAR_USER_AGENT</span> or a default EarningsTracker-compatible string. <span class="mono">extract_sec_exhibit_urls</span> regexes EX-99.1 / EX-99.2 / EX-99 / exhibitN in hrefs and link text. Resolve //, /, relative. Sort: PDF first, then EX-99.1 before other exhibits.</p>
+  <p>Yahoo Finance wrappers: same-host .htm/.pdf under the same path prefix, ranked by link text (earnings release → press release → results → presentations → 6-k → exhibit).</p>
+  <p><span class="mono">handle_sec</span>: try first 5 exhibit URLs. PDF if ctype/url says so and text &gt;500 chars; else SEC HTML extract &gt;500. Then wrapper body extract; then <span class="mono">&lt;DOCUMENT&gt;&lt;TYPE&gt;EX-99.1|6-K&lt;TEXT&gt;</span> embedded. HTML extract prefers #documentContent / .body / #content / .content / &lt;body&gt; if the stripped text is &gt;200 chars; strips SEC boilerplate (Page N of M, CIK/SIC, sec.gov). Returns (text, is_pdf, resolved_url) or (None, False, original).</p>
+
+  <h3>Extract — <span class="mono">extract.py</span></h3>
+  <p><span class="mono">extract_html</span> → (text, title, canonical). Trafilatura markdown with links+tables if it yields substance (timeout 0 = no extra watchdog). Metadata for title/url. Fallback: <span class="mono">html_to_text</span> — drop script/style/svg/head, turn block tags into newlines, strip tags, unescape nbsp/amp/lt/gt/quot/euro/pound/yen, drop “Cookie Policy / Accept Cookies / Skip to content” chrome. Title from <span class="mono">&lt;title&gt;</span> if needed; canonical from <span class="mono">rel=canonical</span>.</p>
+
+  <h3>URL helpers — <span class="mono">urlutil.py</span></h3>
+  <p><span class="mono">resolve_href</span> / <span class="mono">absolutize_html_links</span>. <span class="mono">is_pdf_url</span>: path ends with .pdf or <span class="mono">filetype=pdf</span>. <span class="mono">extract_all_links</span> skips mailto/javascript/tel, cookie/privacy/terms, and social hrefs. <span class="mono">looks_like_html_url</span>: .htm/.html or “htm” in the path (used to decide whether a SEC URL should hunt exhibits).</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="section" id="s9">
+  <h2>9. Supporting modules</h2>
+
+  <h3>Budget — <span class="mono">engine/budget.py</span> (re-exported as <span class="mono">engine/agent/budget.py</span>)</h3>
+  <p><span class="mono">from_web_options</span>: keys <span class="mono">max_search_uses</span>, <span class="mono">max_fetches</span>, <span class="mono">max_rounds</span>, <span class="mono">web_context_budget_chars</span>. Missing/None/"" → settings. Garbage int → default. Explicit 0 is kept (search/fetch then immediately fail-closed). <span class="mono">max_rounds</span> = max(1, n). Chars/search/fetch floored at 0.</p>
+  <p><span class="mono">trim_tool_messages</span>: if char budget ≤0, no-op (unlimited). Else while the sum of <span class="mono">role=tool</span> contents exceeds the cap, compact the oldest tool message that is not already a stub and is ≥80 chars. Stub: <span class="mono">[compacted: {dropped} chars dropped; URLs retained: {urls}]</span>. URLs collected from <span class="mono">[PUBLIC_URL: …]</span> lines and bare http(s) tokens.</p>
+
+  <h3>Errors — <span class="mono">engine/errors.py</span></h3>
+  <ul>
+    <li><span class="mono">SearchUnavailable.message</span> — Mode 1 → 502; tools → that string.</li>
+    <li><span class="mono">RequiredSearchFailed.reason</span> — Mode 2 → 424.</li>
+    <li><span class="mono">StreamToolsRejected</span> — defined; chat uses HTTPException 400 directly.</li>
+    <li>Helpers: <span class="mono">fail_closed_search / fetch / budget</span> all end with <span class="mono">Do not present unverified facts as sourced.</span></li>
+  </ul>
+
+  <h3>Connect — <span class="mono">engine/connect.py</span></h3>
+  <p><span class="mono">connection_info()</span> for GET / and GET /v1: OpenAI base <span class="mono">http://127.0.0.1:{port}/v1</span>, DeepSeek-style base without /v1, model, api_key or the literal <span class="mono">local</span>, snippets for OpenAI Python, env exports, Cursor, Continue, LiteLLM. Notes list the two plugin layers and that Mode 1 does not need a Brain. <span class="mono">print_banner</span> is what <span class="mono">python -m engine</span> shows.</p>
+
+  <h3>Setup — <span class="mono">engine/setup.py</span></h3>
+  <p>If <span class="mono">.env</span> is missing, copy <span class="mono">.env.example</span>. Print whether SERPAPI / Tavily / Brave keys exist (never the values). Print banner + start/toggle/check commands. <span class="mono">--check</span> exits 1 if no search key.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="section" id="s10">
+  <h2>10. File map of the repo</h2>
+<pre>engine/                    the service (the only package)
+  __init__.py              __version__ = "0.1.0"
+  __main__.py              python -m engine  →  run | setup | check
+  main.py                  FastAPI app, lifespan, CORS, router mount
+  config.py                env → Settings + enums + VLLM_REQUIRED_FLAGS
+  runtime.py               http_client, fetch_cache, plugin_enabled, capabilities
+  plugin.py                Layer 1 / Layer 2
+  auth.py                  Bearer / ?api_key=
+  errors.py                typed failures + ERROR: strings
+  budget.py                per-request caps + tool-message compaction
+  metrics.py               Prometheus names
+  connect.py               client snippets
+  setup.py                 create .env from example, print connect info
+  search/                  providers + merge + query hygiene
+    __init__.py            Hit, SearchOutcome, run_search
+    base.py                Hit / SearchOutcome / canonical_url / fan-out order
+    httputil.py            JSON GET/POST with one cheap retry
+    merge.py               fan-out, collapse, blend, domain filter, format
+    query.py               company clean, site:/pdf queries, recency tbs
+    serpapi.py             Google SERP + extras + 0.4s pace
+    tavily.py              long excerpts, include_answer=false
+    brave.py               independent index + extra_snippets + news
+    searxng.py             self-hosted JSON
+    google_cse.py          pin-only Custom Search
+  fetch/                   download + extract
+    __init__.py            Page, fetch_url
+    ladder.py              httpx → curl_cffi → Playwright → PDF/SEC
+    policy.py              deny lists, WAF markers, headers, IR/SEC predicates
+    cache.py               TTL cache, shorter TTL on failure
+    extract.py             Trafilatura then html_to_text
+    pdf.py                 pdfplumber → fitz → pypdf → pdftotext → regex
+    sec.py                 EX-99 discovery, Yahoo wrapper, EDGAR UA
+    js_interact.py         expanders, tabs, age-gate, iframes, data-* harvest
+    urlutil.py             href resolve, PDF detect, title/canonical, links
+  tools/
+    __init__.py            KNOWN_TOOLS, TOOL_SCHEMAS
+    schemas.py             OpenAI function JSON for the three tools
+    execute.py             dispatch, budget, fail-closed strings, sources
+    dsml_fallback.py       recover tool_calls from DeepSeek markup
+  agent/
+    __init__.py            run_agent_loop
+    loop.py                tool loop, canary, strip helpers
+    budget.py              re-export of engine.budget.ToolBudget
+    prompts.py             WEB_SYSTEM_MESSAGE + FORCE_SEARCH_NUDGE
+    citations.py           [SOURCE]/[PUBLIC_URL] blocks
+    upstream.py            completions URL, auth headers, usage sum
+  api/
+    __init__.py            package marker
+    health.py              /, /health, /metrics, /capabilities
+    ui.py                  GET /ui
+    plugin.py              GET/POST /v1/plugin
+    openai_compat.py       /v1, /v1/models
+    chat.py                completions + stream proxy
+    primitives.py          /v1/search /fetch /research
+    compat.py              GET /search SerpAPI shape
+tests/                     pytest (no live keys)
+scripts/                   check_search.py, smoke.py, install.sh
+docs/                      this file, render_pdf.py, PDF
+Dockerfile                 python:3.12-slim + poppler + Chromium
+docker-compose.yml         engine :8090; optional searxng profile
+</pre>
+  <p>Not product code: <span class="mono">.cursor/research/</span> (build notes), <span class="mono">org-repos/</span> (gitignored clones). This paper does not document those.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="section" id="s11">
+  <h2>11. Tests — what each file locks</h2>
+  <p><span class="mono">tests/conftest.py</span> autouse fixture: blank every search key, upstream <span class="mono">http://upstream.test</span>, <span class="mono">fetch_mode=no_browser</span>, canary off, plugin on, policy auto, pace 0, retries 0. Restores settings and <span class="mono">runtime.plugin_enabled</span>. Clears <span class="mono">_PROCESS_CACHE</span>. <span class="mono">client</span> fixture is a FastAPI <span class="mono">TestClient</span> of <span class="mono">engine.main:app</span> (runs lifespan).</p>
+  <p>No test talks to a live provider or a live Brain. ~71 tests.</p>
+  <table>
+    <thead><tr><th>File</th><th>What it locks</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">test_plugin.py</span></td><td>Welcome/health expose plugin. Toggle blocks Mode 1 with 503. Header off without flipping global. Global off wins over body/header on. Body <span class="mono">enabled:false</span> is pass-through. Intelligence auto when on. Status explains layers. /ui HTML. Plugin off does not start the loop. Policy off skips loop including stream. Strip phoenician_* and engine tools. Stream outbound body stripped when plugin off.</td></tr>
+      <tr><td><span class="mono">test_loop.py</span></td><td>Tool round then final prose. DSML in content recovered. policy=required: re-ask then 424; re-ask then search succeeds. Policy off / plugin disabled are pass-through. Schema is OpenAI function shape.</td></tr>
+      <tr><td><span class="mono">test_fail_closed.py</span></td><td>No providers never says “own knowledge”. Over-budget is ERROR string. Helper wording. Empty query and bad fetch URL are ERROR, not 500.</td></tr>
+      <tr><td><span class="mono">test_budget.py</span></td><td>Search/fetch caps. Oldest tool output compacted first. <span class="mono">from_web_options</span> honors explicit 0; ignores garbage.</td></tr>
+      <tr><td><span class="mono">test_api.py</span></td><td>Health, welcome curls, /v1/models, capabilities lists vLLM flags. stream+tools → 400. Auth 401 when key set. Empty search query → 400. GET /search accepts <span class="mono">api_key=</span>.</td></tr>
+      <tr><td><span class="mono">test_compat.py</span></td><td>Hits → organic_results / answer_box / knowledge_graph / related_questions shape.</td></tr>
+      <tr><td><span class="mono">test_merge.py</span></td><td>Collapse keeps Google source + longer Tavily snippet. Blend interleaves and promotes confirmed. Dedup by canonical URL and snippet. ir_discovery drops SEC + aggregators. earnings_doc allows SEC. general_research drops social only. Pin of unconfigured provider is a clear error. SerpAPI JSON error field is a provider failure. All fail raises; one fail is skipped.</td></tr>
+      <tr><td><span class="mono">test_providers.py</span></td><td>Tavily parse of answer + results. Brave parse of web, news, extra_snippets.</td></tr>
+      <tr><td><span class="mono">test_serpapi_parse.py</span></td><td>Organic + answer_box + KG + two related. extras keep raw blocks.</td></tr>
+      <tr><td><span class="mono">test_query.py</span></td><td>Legal-suffix strip. site: / filetype builders. build_simple_queries includes PDF and site:.</td></tr>
+      <tr><td><span class="mono">test_ladder.py</span></td><td>Accept-Encoding only advertises decodable. Binary rejected. PDF magic vs HTML disguise. 403 escalates to curl_cffi. httpx_only does not. Thin HTML escalates to Playwright. PDF bytes go through the parser. SEC wrapper follows EX-99.1. Exhibit URL sort priority. Social skipped.</td></tr>
+      <tr><td><span class="mono">test_extract.py</span></td><td>html_to_text strips chrome and unescapes. Fallback when Trafilatura empty. max_chars respected.</td></tr>
+      <tr><td><span class="mono">test_dsml.py</span></td><td>Closed invoke, open invoke without closer, DeepSeek tool▁calls markup. Empty/prose → [].</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<section class="section" id="s12">
+  <h2>12. Scripts and Docker</h2>
+
+  <h3><span class="mono">scripts/check_search.py</span></h3>
+  <p>Live Mode 1. Query “Phoenician Capital”. Default: try the engine at <span class="mono">ENGINE_URL</span> (default <span class="mono">http://127.0.0.1:8090</span>); if connect fails, fall back to calling <span class="mono">run_search</span> in-process. <span class="mono">--engine</span> fails if /health is down. <span class="mono">--direct</span> never uses the server.</p>
+  <p>Via engine: GET / (print search_ready, providers, plugin). If plugin off → FAIL with the /ui message. If no providers → FAIL. Then POST /v1/search (require hits), GET /search (print organic count), POST /v1/fetch example.com with <span class="mono">httpx_only</span> (require ok). Bearer from <span class="mono">ENGINE_API_KEY</span> if set. Never prints keys.</p>
+
+  <h3><span class="mono">scripts/smoke.py</span></h3>
+  <p>Live Mode 2 against a running engine + Brain. GET /capabilities (warn if canary failed). POST chat with <span class="mono">policy: required</span> and a dated Apple-revenue question — require web_search or search_and_read in the trace and an http URL in sources; 424 is FAIL. Then POST “What is 2+2?” with <span class="mono">policy: off</span> — FAIL if a tool trace appears. Timeout 180s.</p>
+
+  <h3><span class="mono">scripts/install.sh</span></h3>
+  <p>Create <span class="mono">.venv</span> if missing, <span class="mono">pip install -r requirements-dev.txt</span>, <span class="mono">python -m engine setup</span>. Requires python3.</p>
+
+  <h3><span class="mono">docs/render_pdf.py</span></h3>
+  <p>Playwright Chromium opens <span class="mono">method.html</span> as a file:// URI, writes <span class="mono">docs/Local-LLM-Internet-Engine-Method.pdf</span> A4 with header “Phoenician Capital · local-engine-internet / How it works · 9 September 2026” and a page number footer. Use <span class="mono">.venv/bin/python docs/render_pdf.py</span>.</p>
+
+  <h3>Docker</h3>
+  <p><span class="mono">Dockerfile</span>: <span class="mono">python:3.12-slim</span>. apt: poppler-utils, wget, gnupg, ca-certificates. pip install <span class="mono">requirements.txt</span>, then <span class="mono">playwright install --with-deps chromium</span>. Copies only <span class="mono">engine/</span> (not tests/scripts/docs). CMD uvicorn <span class="mono">engine.main:app --host 0.0.0.0 --port 8090</span>.</p>
+  <p><span class="mono">docker-compose.yml</span>: service <span class="mono">engine</span> build ., ports 8090:8090, optional <span class="mono">.env</span>, restart unless-stopped. Service <span class="mono">searxng</span> image <span class="mono">searxng/searxng:latest</span> under profile <span class="mono">searxng</span>, host 8888 → container 8080. Start with <span class="mono">docker compose up --build</span>. Add SearXNG: <span class="mono">docker compose --profile searxng up</span> and set <span class="mono">SEARXNG_URL</span>.</p>
+</section>
+
+<!-- ============================================================ -->
+<section class="section" id="s13">
+  <h2>13. Environment</h2>
+  <p>Read once at import from process env + <span class="mono">.env</span>. Defaults below match <span class="mono">engine/config.py</span>. <span class="mono">.env.example</span> sets <span class="mono">FETCH_MODE=no_browser</span>; the Settings default if unset is <span class="mono">full</span>.</p>
   <table>
     <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
     <tbody>
       <tr><td>ENGINE_HOST / ENGINE_PORT</td><td>0.0.0.0 / 8090</td><td>Bind</td></tr>
-      <tr><td>ENGINE_API_KEY</td><td>empty</td><td>Incoming auth</td></tr>
-      <tr><td>PLUGIN_ENABLED</td><td>true</td><td>Layer 1 at start</td></tr>
+      <tr><td>ENGINE_API_KEY / SEARCH_API_KEY</td><td>empty</td><td>Incoming auth; unset = open</td></tr>
+      <tr><td>PLUGIN_ENABLED</td><td>true</td><td>Layer 1 at process start</td></tr>
       <tr><td>DEFAULT_WEB_POLICY</td><td>auto</td><td>Layer 2</td></tr>
+      <tr><td>DEFAULT_DOMAIN_MODE</td><td>general_research</td><td>Search/fetch deny list</td></tr>
       <tr><td>UPSTREAM_LLM_BASE_URL</td><td>http://127.0.0.1:8080</td><td>Mode 2 LLM</td></tr>
-      <tr><td>UPSTREAM_API_KEY</td><td>empty</td><td>Forwarded Bearer</td></tr>
-      <tr><td>UPSTREAM_MODEL</td><td>deepseek-v4-flash</td><td>Default model field</td></tr>
-      <tr><td>SERPAPI_KEY</td><td></td><td>Google SERP</td></tr>
+      <tr><td>UPSTREAM_API_KEY / ROUTER_API_KEY</td><td>empty</td><td>Bearer to the LLM</td></tr>
+      <tr><td>UPSTREAM_MODEL</td><td>deepseek-v4-flash</td><td>Default model field + /v1/models</td></tr>
+      <tr><td>SERPAPI_KEY / SERPAPI_API_KEY</td><td></td><td>Google SERP</td></tr>
       <tr><td>TAVILY_API_KEY</td><td></td><td>Long excerpts</td></tr>
       <tr><td>BRAVE_API_KEY</td><td></td><td>Independent index</td></tr>
-      <tr><td>SEARXNG_URL</td><td></td><td>Self-hosted</td></tr>
+      <tr><td>SEARXNG_URL</td><td></td><td>Self-hosted search</td></tr>
       <tr><td>GOOGLE_API_KEY + GOOGLE_SEARCH_ENGINE_ID</td><td></td><td>CSE, pin-only</td></tr>
-      <tr><td>TAVILY_SEARCH_DEPTH</td><td>advanced</td><td></td></tr>
-      <tr><td>SEARCH_PROVIDER_RETRIES</td><td>1</td><td></td></tr>
-      <tr><td>FETCH_MODE</td><td>full (example env: no_browser)</td><td>full / no_browser / httpx_only</td></tr>
-      <tr><td>MAX_TOOL_ROUNDS</td><td>6</td><td></td></tr>
-      <tr><td>MAX_SEARCH_USES / MAX_FETCHES</td><td>8 / 8</td><td></td></tr>
-      <tr><td>WEB_CONTEXT_BUDGET_CHARS</td><td>150000</td><td></td></tr>
-      <tr><td>MAX_CHARS_PER_DOC / PDF</td><td>8000 / 25000</td><td></td></tr>
-      <tr><td>DOC_FETCH_TIMEOUT</td><td>20s</td><td></td></tr>
-      <tr><td>SEARCH_PROVIDER_TIMEOUT</td><td>15s</td><td></td></tr>
-      <tr><td>REQUEST_TIMEOUT</td><td>300s</td><td>LLM call</td></tr>
-      <tr><td>SERPAPI_PACE_SECONDS</td><td>0.4</td><td></td></tr>
-      <tr><td>SEC_EDGAR_USER_AGENT</td><td>set in .env.example</td><td>EDGAR</td></tr>
-      <tr><td>RUN_CANARY_ON_STARTUP</td><td>true</td><td></td></tr>
-      <tr><td>CANARY_TIMEOUT_SECONDS</td><td>5</td><td></td></tr>
+      <tr><td>TAVILY_SEARCH_DEPTH</td><td>advanced</td><td>ultra-fast / fast / basic / advanced</td></tr>
+      <tr><td>SEARCH_PROVIDER_RETRIES</td><td>1</td><td>Extra tries after the first</td></tr>
+      <tr><td>SEARCH_PROVIDER_TIMEOUT</td><td>15s</td><td>Per provider HTTP</td></tr>
+      <tr><td>SERPAPI_PACE_SECONDS</td><td>0.4</td><td>Min gap between SerpAPI calls</td></tr>
+      <tr><td>FETCH_MODE</td><td>full (example: no_browser)</td><td>full / no_browser / httpx_only</td></tr>
+      <tr><td>DOC_FETCH_TIMEOUT</td><td>20s</td><td>Page GET</td></tr>
+      <tr><td>HEADLESS_RENDER_TIMEOUT_MS</td><td>15000</td><td>Playwright goto</td></tr>
+      <tr><td>THIN_HTML_CHAR_THRESHOLD</td><td>400</td><td>Escalate thin pages</td></tr>
+      <tr><td>MAX_CHARS_PER_DOC / PDF</td><td>8000 / 25000</td><td>Extract caps</td></tr>
+      <tr><td>MAX_TOTAL_DOC_CHARS</td><td>50000</td><td>In Settings; not applied in the current ladder/loop</td></tr>
+      <tr><td>MAX_PDF_BYTES</td><td>25 MiB</td><td>Skip parse above this</td></tr>
+      <tr><td>FETCH_CACHE_TTL</td><td>1800s</td><td>Success cache (lifespan cache object)</td></tr>
+      <tr><td>FETCH_CACHE_FAILURE_TTL</td><td>120s</td><td>Negative cache</td></tr>
+      <tr><td>MAX_TOOL_ROUNDS</td><td>6</td><td>Loop cap (at least 1)</td></tr>
+      <tr><td>MAX_SEARCH_USES / MAX_FETCHES</td><td>8 / 8</td><td>Per request</td></tr>
+      <tr><td>WEB_CONTEXT_BUDGET_CHARS</td><td>150000</td><td>Compact oldest tool text over this</td></tr>
+      <tr><td>DEFAULT_NUM_RESULTS</td><td>8</td><td>web_search default</td></tr>
+      <tr><td>DEFAULT_SEARCH_AND_READ_TOP_N</td><td>3</td><td>search_and_read default</td></tr>
+      <tr><td>REQUEST_TIMEOUT</td><td>300s</td><td>Upstream LLM + httpx read</td></tr>
+      <tr><td>SEC_EDGAR_USER_AGENT</td><td>LocalEngineInternet/1.0 …</td><td>EDGAR requires a contact UA</td></tr>
+      <tr><td>RUN_CANARY_ON_STARTUP</td><td>true</td><td>Background tool-call probe</td></tr>
+      <tr><td>CANARY_TIMEOUT_SECONDS</td><td>5</td><td>Does not block listen</td></tr>
+      <tr><td>CORS_ALLOWED_ORIGINS</td><td>empty</td><td>Comma list; empty + no API key → *</td></tr>
     </tbody>
   </table>
 </section>
 
-<section class="section" id="s9">
-  <h2>9. How to run</h2>
-<pre>python3.12 -m venv .venv && source .venv/bin/activate
+<!-- ============================================================ -->
+<section class="section" id="s14">
+  <h2>14. How to run</h2>
+<pre>python3.12 -m venv .venv &amp;&amp; source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env          # set SERPAPI_KEY
 python -m engine              # :8090
 python scripts/check_search.py
+pytest
 </pre>
-  <p>Clients: OpenAI-compatible base <span class="mono">http://127.0.0.1:8090/v1</span>, key <span class="mono">local</span> if unset. DeepSeek-style base without <span class="mono">/v1</span>: <span class="mono">http://127.0.0.1:8090</span>.</p>
-  <p>Docker: <span class="mono">docker compose up --build</span>. <span class="mono">FETCH_MODE=full</span> needs <span class="mono">playwright install chromium</span>.</p>
-  <p>PDF of this file: <span class="mono">python docs/render_pdf.py</span>.</p>
+  <p>Clients: OpenAI-compatible base <span class="mono">http://127.0.0.1:8090/v1</span>, key <span class="mono">local</span> if unset. DeepSeek-style base without <span class="mono">/v1</span>: <span class="mono">http://127.0.0.1:8090</span>. Toggle: <span class="mono">/ui</span>. OpenAPI: <span class="mono">/docs</span>.</p>
+  <p>Mode 2 needs a Brain at <span class="mono">UPSTREAM_LLM_BASE_URL</span> that emits OpenAI <span class="mono">tool_calls</span> (or DSML the fallback can parse). vLLM DeepSeek Flash flags are in §2.</p>
+  <p>Docker: <span class="mono">docker compose up --build</span>. <span class="mono">FETCH_MODE=full</span> locally needs <span class="mono">playwright install chromium</span> (the image already installs it).</p>
+  <p>PDF of this file: <span class="mono">.venv/bin/python docs/render_pdf.py</span>.</p>
+  <p class="note">Optional chat body (stripped before the LLM): <span class="mono">phoenician_web.{enabled, policy, max_search_uses, max_fetches, max_rounds, web_context_budget_chars, fetch_mode, domain_mode, providers}</span> and <span class="mono">phoenician_tools</span>. Header <span class="mono">X-Phoenician-Plugin: off</span> forces Layer 1 off for that request only.</p>
 </section>
 
 </body>
