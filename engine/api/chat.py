@@ -61,13 +61,13 @@ def _upstream_down_detail(exc: Exception) -> str:
 async def _proxy_stream(request: Request, body: dict[str, Any]) -> StreamingResponse:
     client = get_http_client()
     headers = {k.lower(): v for k, v in request.headers.items()}
-    from ..agent.upstream import auth_headers
+    from ..agent.upstream import auth_headers, prepare_upstream_body
 
     upstream_headers = auth_headers(headers)
     req = client.build_request(
         "POST",
         completions_url(),
-        json=_outbound_chat_body(body, headers),
+        json=prepare_upstream_body(_outbound_chat_body(body, headers)),
         headers=upstream_headers,
         timeout=settings.request_timeout,
     )

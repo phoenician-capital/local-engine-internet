@@ -64,7 +64,7 @@
 <section class="cover">
   <div class="kicker">local-engine-internet</div>
   <h1>Internals of this repo</h1>
-  <p class="lede">A file-by-file account of the FastAPI process on <span class="mono">:8090</span>. Search, fetch, and an OpenAI-compatible tool loop in front of <span class="mono">UPSTREAM_LLM_BASE_URL</span>. After this document you should be able to open any file under <span class="mono">engine/</span> and already know what it does.</p>
+  <p class="lede">A file-by-file account of the FastAPI process on <span class="mono">:8090</span>. Search, fetch, and a DeepSeek / vLLM chat-completions tool loop in front of <span class="mono">UPSTREAM_LLM_BASE_URL</span>. After this document you should be able to open any file under <span class="mono">engine/</span> and already know what it does.</p>
   <hr class="rule" />
   <div class="cover-meta">
     Package: <span class="mono">engine</span> · version 0.1.0 · Python ≥ 3.12<br/>
@@ -97,7 +97,7 @@
 <!-- ============================================================ -->
 <section class="section first" id="s1">
   <h2>1. What the process does</h2>
-  <p>One FastAPI app (`engine.main:app`). It does not load weights. It talks to search APIs, downloads pages, and — only in chat — sits between the client and an upstream OpenAI-compatible LLM (default <span class="mono">http://127.0.0.1:8080</span>, typically ai-router).</p>
+  <p>One FastAPI app (`engine.main:app`). It does not load weights. It talks to search APIs, downloads pages, and — only in chat — sits between the client and DeepSeek Flash at <span class="mono">UPSTREAM_LLM_BASE_URL</span> (default <span class="mono">http://127.0.0.1:8080</span>, typically ai-router). The wire format is <span class="mono">POST /v1/chat/completions</span> — the same JSON DeepSeek and vLLM already use.</p>
 <pre>client
    │
    ▼
@@ -769,7 +769,7 @@ python -m engine              # :8090
 python scripts/check_search.py
 pytest
 </pre>
-  <p>Clients: OpenAI-compatible base <span class="mono">http://127.0.0.1:8090/v1</span>, key <span class="mono">local</span> if unset. DeepSeek-style base without <span class="mono">/v1</span>: <span class="mono">http://127.0.0.1:8090</span>. Toggle: <span class="mono">/ui</span>. OpenAPI: <span class="mono">/docs</span>.</p>
+  <p>Clients: DeepSeek / vLLM chat-completions at <span class="mono">http://127.0.0.1:8090/v1</span>, key <span class="mono">local</span> if unset. Base without <span class="mono">/v1</span> also works: <span class="mono">http://127.0.0.1:8090</span>. Toggle: <span class="mono">/ui</span>. HTTP API docs: <span class="mono">/docs</span>.</p>
   <p>Mode 2 needs a Brain at <span class="mono">UPSTREAM_LLM_BASE_URL</span> that emits OpenAI <span class="mono">tool_calls</span> (or DSML the fallback can parse). vLLM DeepSeek Flash flags are in §2.</p>
   <p>Docker: <span class="mono">docker compose up --build</span>. <span class="mono">FETCH_MODE=full</span> locally needs <span class="mono">playwright install chromium</span> (the image already installs it).</p>
   <p>PDF of this file: <span class="mono">.venv/bin/python docs/render_pdf.py</span>.</p>

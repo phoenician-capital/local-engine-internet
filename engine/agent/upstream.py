@@ -30,6 +30,32 @@ def auth_headers(incoming: dict[str, str]) -> dict[str, str]:
     return headers
 
 
+def _forced_tool_choice(choice: Any) -> bool:
+    if choice == "required":
+        return True
+    if isinstance(choice, dict) and (choice.get("function") or {}).get("name"):
+        return True
+    return False
+
+
+def prepare_upstream_body(body: dict[str, Any]) -> dict[str, Any]:
+    """DeepSeek V4 cloud thinking mode rejects forced tool_choice (HTTP 400).
+
+    Local vLLM with the documented flags accepts the force. Only rewrite when
+    the upstream host is api.deepseek.com and the caller did not already set
+    ``thinking``.
+    """
+    out = dict(body)
+    host = urlparse(settings.upstream_llm_base_url).netloc.lower()
+    if host != "api.deepseek.com":
+        return out
+    if "thinking" in out:
+        return out
+    if _forced_tool_choice(out.get("tool_choice")):
+        out["thinking"] = {"type": "disabled"}
+    return out
+
+
 async def post_completion(
     client: httpx.AsyncClient,
     body: dict[str, Any],
@@ -40,7 +66,7 @@ async def post_completion(
     # Forward X-Priority unchanged (ai-router reads it).
     resp = await client.post(
         completions_url(),
-        json=body,
+        json=prepare_upstream_body(body),
         headers=headers,
         timeout=timeout if timeout is not None else settings.request_timeout,
     )

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>local-engine-internet — live demo</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: 10.6pt;
+    line-height: 1.48;
+    color: #1c1914;
+    background: #fff;
+  }
+  h1, h2, h3, nav, table, .kicker, .cover-meta, th {
+    font-family: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  .cover {
+    page-break-after: always;
+    min-height: 200mm;
+    padding-top: 36mm;
+    border-top: 6px solid #1b2a4a;
+  }
+  .kicker { letter-spacing: 0.18em; text-transform: uppercase; font-size: 9pt; color: #7a3b2e; font-weight: 600; margin-bottom: 14px; }
+  .cover h1 { font-size: 26pt; line-height: 1.15; font-weight: 600; color: #1b2a4a; margin: 0 0 16px; }
+  .cover .lede { font-size: 13pt; line-height: 1.4; color: #3a342c; max-width: 155mm; margin: 0 0 24px; }
+  .cover-meta { font-size: 9.5pt; color: #5c564c; line-height: 1.7; }
+  .rule { border: 0; border-top: 1px solid #d4cfc4; margin: 22px 0; }
+  h2 { font-size: 14.5pt; color: #1b2a4a; margin: 20px 0 8px; page-break-after: avoid; }
+  h3 { font-size: 11.3pt; color: #7a3b2e; margin: 14px 0 6px; page-break-after: avoid; }
+  p { margin: 0 0 8px; }
+  ul, ol { margin: 0 0 10px 1.2em; padding: 0; }
+  li { margin-bottom: 3px; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 8.7pt; line-height: 1.35; page-break-inside: avoid; }
+  th { text-align: left; background: #1b2a4a; color: #fff; font-weight: 600; padding: 5px 7px; }
+  td { padding: 4px 7px; vertical-align: top; border-bottom: 1px solid #e6e1d6; }
+  tr:nth-child(even) td { background: #f6f3ec; }
+  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.5pt; }
+  pre {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 7.9pt;
+    line-height: 1.4;
+    background: #f6f3ec;
+    border: 1px solid #e6e1d6;
+    padding: 8px 10px;
+    white-space: pre-wrap;
+    page-break-inside: avoid;
+    margin: 6px 0 12px;
+  }
+  .section { page-break-before: always; }
+  .section.first { page-break-before: auto; }
+  .ok { color: #1b5e3a; font-weight: 600; }
+  .warn { color: #7a3b2e; font-weight: 600; }
+  .note { font-size: 9.5pt; color: #3a342c; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="kicker">Phoenician Capital · local-engine-internet</div>
+  <h1>Live demo<br/>Search + DeepSeek Flash</h1>
+  <p class="lede">A short paper you can send. How the service works, what we tested on 9 September 2026, and the live numbers DeepSeek Flash produced after searching and reading Apple’s own filings. No cloud writing models. Same Flash you will run in the datacenter.</p>
+  <hr class="rule" />
+  <div class="cover-meta">
+    Engine: http://127.0.0.1:8090<br/>
+    Model: deepseek-v4-flash (DeepSeek API today · local Brain tomorrow)<br/>
+    Search: SerpAPI + Tavily<br/>
+    Date of run: 9 September 2026, 10:50–10:55 UTC<br/>
+    Internals (full code map): Local-LLM-Internet-Engine-Method.pdf
+  </div>
+</section>
+
+<section class="section first">
+  <h2>1. How it works</h2>
+  <p>Company apps already talk to DeepSeek with <span class="mono">POST /v1/chat/completions</span> (messages, tools, tool_calls). This service sits on port <span class="mono">8090</span> and speaks that same DeepSeek / vLLM wire format. It does not load model weights. It searches the web, downloads pages, and — in chat — sits in front of DeepSeek Flash.</p>
+<pre>Analyst / PI / portfolio app
+        │
+        ▼
+local-engine-internet  :8090
+   ├── search + fetch     SerpAPI, Tavily  (Brave later)
+   └── chat + tools       DeepSeek Flash
+                                │
+                     today:  api.deepseek.com
+                     later:  ai-router :8080  (same model name)
+</pre>
+  <p><strong>Mode 1</strong> — the pipeline already decided to search. <span class="mono">POST /v1/search</span>, <span class="mono">/v1/fetch</span>, <span class="mono">/v1/research</span>. No model in the hop.</p>
+  <p><strong>Mode 2</strong> — the user sends a question. Flash may call <span class="mono">web_search</span> and <span class="mono">fetch_url</span>. The engine runs those tools and asks Flash again until it answers in prose. Sources stay labeled. If search is required and fails, the HTTP status is 424 — it does not invent numbers from training data.</p>
+  <p>When the datacenter Brain is up, change one setting: <span class="mono">UPSTREAM_LLM_BASE_URL=http://127.0.0.1:8080</span>. Apps keep pointing at <span class="mono">http://127.0.0.1:8090/v1</span>. You stop using Claude / GPT / Gemini / Perplexity as the writer. You still use search APIs (Google via SerpAPI, Tavily). Those are indexes, not models.</p>
+</section>
+
+<section class="section">
+  <h2>2. What we tested</h2>
+  <p>Two batteries on the same machine, same engine process (restarted only to point chat at DeepSeek’s API).</p>
+  <table>
+    <thead><tr><th>Check</th><th>What it proves</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Health / plugin</td><td>Service up, internet plugin on, model may choose when to search</td><td class="ok">Pass</td></tr>
+      <tr><td>SerpAPI + Tavily mix</td><td>Both indexes run in parallel; one failure does not kill the request</td><td class="ok">Pass — 0 errors</td></tr>
+      <tr><td>GET /search</td><td>SerpAPI-shaped JSON for existing scrapers</td><td class="ok">Pass</td></tr>
+      <tr><td>Fetch HTML</td><td>example.com and investor.apple.com</td><td class="ok">Pass</td></tr>
+      <tr><td>Fetch official 10-Q PDF</td><td>Parser reads Apple’s IR PDF (income statement)</td><td class="ok">Pass</td></tr>
+      <tr><td>Fail-closed (no Brain)</td><td>Chat while :8080 is down</td><td class="ok">502 — search still works; no invented answer</td></tr>
+      <tr><td>Tool-call canary (DeepSeek API)</td><td>Flash emits structured tool_calls</td><td class="ok">Pass</td></tr>
+      <tr><td>Mode 2, policy required</td><td>Flash must search, then answer with URLs</td><td class="ok">200 in 77.6s</td></tr>
+      <tr><td>Mode 2, policy off</td><td>“What is 2+2?” stays offline</td><td class="ok">“4” — no tools, 1.1s</td></tr>
+      <tr><td>pytest (71 tests)</td><td>No live keys; locks mix, plugin, fail-closed, fetch ladder</td><td class="ok">Pass (run separately)</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Brave was not configured. It is optional — the mix runs without it. Tavily returned 403 earlier in the day and 200 on retry; the mix skipped the failure and kept SerpAPI.</p>
+</section>
+
+<section class="section">
+  <h2>3. Live Mode 1 — search and fetch</h2>
+  <p>Ran 10:50–10:51 UTC. No model. Query used for the clean hit list:</p>
+<pre>AAPL 10-Q "June 27, 2026" OR aapl-20260627 site:sec.gov OR site:q4cdn.com</pre>
+  <table>
+    <thead><tr><th></th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>HTTP</td><td>200</td></tr>
+      <tr><td>Time</td><td>3.7 seconds</td></tr>
+      <tr><td>Providers used</td><td>serpapi, tavily</td></tr>
+      <tr><td>Errors</td><td>none</td></tr>
+      <tr><td>Hits</td><td>8</td></tr>
+      <tr><td>Cross-confirmed URL (both indexes)</td><td>https://www.sec.gov/Archives/edgar/data/320193/000032019326000020/aapl-20260627.htm</td></tr>
+    </tbody>
+  </table>
+  <p>Tavily also returned Apple’s 30 July 2026 newsroom / 8-K and the FY26 Q3 statements PDF. A looser query (“Apple Inc latest 10-Q…”) still returned both providers but mixed in junk (wrong CIK, unrelated video). The engine does not hide bad hits — Flash (or an analyst) must weigh them. That is intentional.</p>
+  <h3>Official PDF we fetched ourselves</h3>
+  <p><span class="mono">POST /v1/fetch</span> of Apple’s IR copy of the Q2 FY2026 10-Q (quarter ended 28 March 2026), 3.8s, httpx, no browser:</p>
+  <p>https://s2.q4cdn.com/470004039/files/doc_earnings/2026/q2/filing/10Q-Q2-2026-as-filed.pdf</p>
+  <table>
+    <thead><tr><th>Line extracted from the PDF</th><th>Q2 FY26</th><th>Prior-year quarter</th></tr></thead>
+    <tbody>
+      <tr><td>Total net sales</td><td>111,184</td><td>95,359</td></tr>
+      <tr><td>Operating income</td><td>35,885</td><td>29,589</td></tr>
+      <tr><td>Net income</td><td>29,578</td><td>24,780</td></tr>
+      <tr><td>Diluted EPS</td><td>2.01</td><td>1.65</td></tr>
+    </tbody>
+  </table>
+  <p class="note">These figures came out of the PDF parser, not a model. Q2 ≠ Q3. The later chat answer is Q3 (June quarter). Keeping them separate is the point of labeled sources.</p>
+</section>
+
+<section class="section">
+  <h2>4. Live Mode 2 — DeepSeek Flash with tools</h2>
+  <p>Ran 10:54 UTC. Engine on :8090. Flash at <span class="mono">https://api.deepseek.com</span>, model <span class="mono">deepseek-v4-flash</span>. Same name you will load on vLLM.</p>
+  <h3>Prompt we sent</h3>
+<pre>Apple Inc (AAPL) most recently reported quarterly revenue, operating
+income, and diluted EPS. Prefer the official 10-Q or earnings release
+on SEC EDGAR or investor.apple.com. Return the filing URL.</pre>
+  <p>Body extra: <span class="mono">phoenician_web.policy: "required"</span> — Flash must complete a successful search or the engine returns 424.</p>
+  <table>
+    <thead><tr><th></th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>HTTP</td><td class="ok">200</td></tr>
+      <tr><td>Wall time</td><td>77.6 seconds</td></tr>
+      <tr><td>Tool rounds</td><td>4 × web_search, 4 × fetch_url</td></tr>
+      <tr><td>Labeled sources</td><td>26</td></tr>
+      <tr><td>Tokens (all rounds)</td><td>70,782</td></tr>
+      <tr><td>Canary</td><td>brain_tool_calls_supported = true</td></tr>
+    </tbody>
+  </table>
+  <h3>What Flash called</h3>
+  <ol>
+    <li><span class="mono">web_search</span> — Apple latest quarterly results / 10-Q</li>
+    <li><span class="mono">web_search</span> — Q3 comparables / press release</li>
+    <li><span class="mono">web_search</span> — apple.com newsroom, 27 June 2026</li>
+    <li><span class="mono">fetch_url</span> — SEC EDGAR browse for CIK 0000320193, type 10-Q</li>
+    <li><span class="mono">fetch_url</span> — filing folder 0000320193-26-000020</li>
+    <li><span class="mono">fetch_url</span> — FY26_Q3_Consolidated_Financial_Statements.pdf (Apple Newsroom)</li>
+    <li><span class="mono">fetch_url</span> — EDGAR index for that accession</li>
+    <li><span class="mono">web_search</span> — “Apple Reports Third Quarter Results” 2026</li>
+  </ol>
+  <h3>What Flash answered</h3>
+  <p>Q3 FY2026, quarter ended 27 June 2026, reported 31 July 2026. From Apple’s condensed consolidated statements (unaudited), millions except per share:</p>
+  <table>
+    <thead><tr><th>Metric</th><th>Q3 FY2026</th><th>Q3 FY2025</th></tr></thead>
+    <tbody>
+      <tr><td>Total net sales (revenue)</td><td><strong>109,417</strong></td><td>94,036</td></tr>
+      <tr><td>Operating income</td><td><strong>35,695</strong></td><td>28,202</td></tr>
+      <tr><td>Net income</td><td><strong>29,789</strong></td><td>23,434</td></tr>
+      <tr><td>Diluted EPS</td><td><strong>2.02</strong></td><td>1.57</td></tr>
+    </tbody>
+  </table>
+  <p>URLs it cited:</p>
+  <ul>
+    <li>https://www.apple.com/newsroom/pdfs/fy2026q3/FY26_Q3_Consolidated_Financial_Statements.pdf</li>
+    <li>https://www.sec.gov/Archives/edgar/data/320193/000032019326000020/ (accession 0000320193-26-000020)</li>
+  </ul>
+  <h3>Control — no web</h3>
+  <p>Same engine, <span class="mono">policy: off</span>, question “What is 2+2? Reply with the number only.” Answer: <strong>4</strong>. No tool trace. 1.1 seconds. The plugin can stay on while a request stays offline.</p>
+</section>
+
+<section class="section">
+  <h2>5. What this means for the datacenter</h2>
+<pre>today     engine :8090  →  api.deepseek.com     →  deepseek-v4-flash
+later     engine :8090  →  ai-router :8080      →  same Flash, local weights
+</pre>
+  <p>vLLM flags the Brain needs so Flash emits structured <span class="mono">tool_calls</span> (same JSON DeepSeek’s own API uses):</p>
+<pre>--tokenizer-mode deepseek_v4
+--tool-call-parser deepseek_v4
+--enable-auto-tool-choice
+--reasoning-parser deepseek_v4</pre>
+  <p>One cloud quirk we already handled: DeepSeek V4 thinking mode rejects a forced <span class="mono">tool_choice</span> (the canary and <span class="mono">policy: required</span>). The engine sends <span class="mono">thinking: {type: disabled}</span> only when the upstream host is <span class="mono">api.deepseek.com</span>. Local vLLM is unchanged.</p>
+  <p>Not in this run: Brave key, self-hosted SearXNG, the metal Brain on :8080. None of those block the path above.</p>
+</section>
+
+<section class="section">
+  <h2>6. How to re-run</h2>
+<pre>python -m engine                          # :8090
+python scripts/check_search.py --engine   # Mode 1, no model
+python scripts/smoke.py                   # Mode 2, needs Flash up
+
+# Same prompt as §4
+curl -s http://127.0.0.1:8090/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "deepseek-v4-flash",
+    "messages": [{"role":"user","content":"Apple Inc (AAPL) most recently reported quarterly revenue, operating income, and diluted EPS. Prefer the official 10-Q or earnings release on SEC EDGAR or investor.apple.com. Return the filing URL."}],
+    "phoenician_web": {"policy": "required"}
+  }'
+</pre>
+  <p>Look for <span class="mono">phoenician_tool_trace</span> (web_search / fetch_url) and <span class="mono">phoenician_sources</span> with real http URLs. Toggle: http://127.0.0.1:8090/ui · OpenAPI: http://127.0.0.1:8090/docs.</p>
+  <p class="note">This paper is the live run. The long internals manual (every file under engine/) is Local-LLM-Internet-Engine-Method.pdf. Neither document contains API keys.</p>
+</section>
+
+</body>
+</html>
