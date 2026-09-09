@@ -4,13 +4,13 @@
 <meta charset="utf-8" />
 <title>local-engine-internet — live demo</title>
 <style>
-  @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
     font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-    font-size: 10.6pt;
-    line-height: 1.48;
+    font-size: 10.2pt;
+    line-height: 1.42;
     color: #1c1914;
     background: #fff;
   }
@@ -18,39 +18,37 @@
     font-family: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
   }
   .cover {
-    page-break-after: always;
-    min-height: 200mm;
-    padding-top: 36mm;
+    padding-top: 8mm;
+    padding-bottom: 4mm;
     border-top: 6px solid #1b2a4a;
+    page-break-after: avoid;
   }
-  .kicker { letter-spacing: 0.18em; text-transform: uppercase; font-size: 9pt; color: #7a3b2e; font-weight: 600; margin-bottom: 14px; }
-  .cover h1 { font-size: 26pt; line-height: 1.15; font-weight: 600; color: #1b2a4a; margin: 0 0 16px; }
-  .cover .lede { font-size: 13pt; line-height: 1.4; color: #3a342c; max-width: 155mm; margin: 0 0 24px; }
-  .cover-meta { font-size: 9.5pt; color: #5c564c; line-height: 1.7; }
-  .rule { border: 0; border-top: 1px solid #d4cfc4; margin: 22px 0; }
-  h2 { font-size: 14.5pt; color: #1b2a4a; margin: 20px 0 8px; page-break-after: avoid; }
-  h3 { font-size: 11.3pt; color: #7a3b2e; margin: 14px 0 6px; page-break-after: avoid; }
-  p { margin: 0 0 8px; }
-  ul, ol { margin: 0 0 10px 1.2em; padding: 0; }
-  li { margin-bottom: 3px; }
-  table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 8.7pt; line-height: 1.35; page-break-inside: avoid; }
-  th { text-align: left; background: #1b2a4a; color: #fff; font-weight: 600; padding: 5px 7px; }
-  td { padding: 4px 7px; vertical-align: top; border-bottom: 1px solid #e6e1d6; }
+  .kicker { letter-spacing: 0.18em; text-transform: uppercase; font-size: 8.5pt; color: #7a3b2e; font-weight: 600; margin-bottom: 8px; }
+  .cover h1 { font-size: 20pt; line-height: 1.15; font-weight: 600; color: #1b2a4a; margin: 0 0 8px; }
+  .cover .lede { font-size: 11pt; line-height: 1.35; color: #3a342c; max-width: 165mm; margin: 0 0 10px; }
+  .cover-meta { font-size: 9pt; color: #5c564c; line-height: 1.55; }
+  .rule { border: 0; border-top: 1px solid #d4cfc4; margin: 10px 0; }
+  h2 { font-size: 13pt; color: #1b2a4a; margin: 14px 0 6px; page-break-after: avoid; }
+  h3 { font-size: 10.6pt; color: #7a3b2e; margin: 10px 0 4px; page-break-after: avoid; }
+  p { margin: 0 0 6px; }
+  ul, ol { margin: 0 0 8px 1.2em; padding: 0; }
+  li { margin-bottom: 2px; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 8.4pt; line-height: 1.32; }
+  th { text-align: left; background: #1b2a4a; color: #fff; font-weight: 600; padding: 4px 6px; }
+  td { padding: 3px 6px; vertical-align: top; border-bottom: 1px solid #e6e1d6; }
   tr:nth-child(even) td { background: #f6f3ec; }
-  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.5pt; }
+  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 8.3pt; }
   pre {
     font-family: "SF Mono", Menlo, Consolas, monospace;
-    font-size: 7.9pt;
-    line-height: 1.4;
+    font-size: 7.6pt;
+    line-height: 1.35;
     background: #f6f3ec;
     border: 1px solid #e6e1d6;
-    padding: 8px 10px;
+    padding: 6px 8px;
     white-space: pre-wrap;
-    page-break-inside: avoid;
-    margin: 6px 0 12px;
+    margin: 4px 0 8px;
   }
-  .section { page-break-before: always; }
-  .section.first { page-break-before: auto; }
+  .section { page-break-before: auto; }
   .ok { color: #1b5e3a; font-weight: 600; }
   .warn { color: #7a3b2e; font-weight: 600; }
   .note { font-size: 9.5pt; color: #3a342c; }
@@ -60,8 +58,8 @@
 
 <section class="cover">
   <div class="kicker">Phoenician Capital · local-engine-internet</div>
-  <h1>Live demo<br/>Search + DeepSeek Flash</h1>
-  <p class="lede">A short paper you can send. How the service works, what we tested on 9 September 2026, and the live numbers DeepSeek Flash produced after searching and reading Apple’s own filings. No cloud writing models. Same Flash you will run in the datacenter.</p>
+  <h1>Live demo — Search + DeepSeek Flash</h1>
+  <p class="lede">A short paper you can send. How the service works, what we tested on 9 September 2026, and the live numbers DeepSeek Flash produced after searching and reading Apple’s own filings. How to run it is at the end. No cloud writing models. Same Flash you will run in the datacenter.</p>
   <hr class="rule" />
   <div class="cover-meta">
     Engine: http://127.0.0.1:8090<br/>
@@ -207,12 +205,87 @@ later     engine :8090  →  ai-router :8080      →  same Flash, local weights
 </section>
 
 <section class="section">
-  <h2>6. How to re-run</h2>
-<pre>python -m engine                          # :8090
-python scripts/check_search.py --engine   # Mode 1, no model
-python scripts/smoke.py                   # Mode 2, needs Flash up
+  <h2>6. How to use it</h2>
+  <p>Repo: <span class="mono">https://github.com/phoenician-capital/local-engine-internet</span>. Python 3.12. You need one search key to start (SerpAPI is enough). Chat also needs DeepSeek — either the public API today, or ai-router on <span class="mono">:8080</span> when the local Brain is up.</p>
 
-# Same prompt as §4
+  <h3>Install and start</h3>
+<pre>git clone https://github.com/phoenician-capital/local-engine-internet.git
+cd local-engine-internet
+python3.12 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp .env.example .env
+# edit .env — see the table below
+python -m engine
+</pre>
+  <p>When it is up: toggle <span class="mono">http://127.0.0.1:8090/ui</span> · HTTP docs <span class="mono">http://127.0.0.1:8090/docs</span> · welcome JSON <span class="mono">http://127.0.0.1:8090/</span>.</p>
+
+  <h3>What to put in <span class="mono">.env</span></h3>
+  <table>
+    <thead><tr><th>Variable</th><th>What you set</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">SERPAPI_KEY</span></td><td>Required to search. Enough by itself.</td></tr>
+      <tr><td><span class="mono">TAVILY_API_KEY</span></td><td>Optional. Longer excerpts. Joins the mix automatically.</td></tr>
+      <tr><td><span class="mono">BRAVE_API_KEY</span></td><td>Optional. Independent index.</td></tr>
+      <tr><td><span class="mono">UPSTREAM_LLM_BASE_URL</span></td><td>Chat only. Today: <span class="mono">https://api.deepseek.com</span>. Later: <span class="mono">http://127.0.0.1:8080</span>.</td></tr>
+      <tr><td><span class="mono">UPSTREAM_API_KEY</span></td><td>DeepSeek API key, or <span class="mono">ROUTER_API_KEY</span> for ai-router. Leave empty if the Brain has no key.</td></tr>
+      <tr><td><span class="mono">UPSTREAM_MODEL</span></td><td><span class="mono">deepseek-v4-flash</span></td></tr>
+      <tr><td><span class="mono">PLUGIN_ENABLED</span></td><td><span class="mono">true</span> (default). Master switch; you can also flip it at <span class="mono">/ui</span>.</td></tr>
+      <tr><td><span class="mono">ENGINE_API_KEY</span></td><td>Leave empty on your laptop. Set a secret if the port is on a network.</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Do not commit <span class="mono">.env</span>. Never put keys in Slack or this PDF.</p>
+
+  <h3>Search only (no model)</h3>
+  <p>Use this from a pipeline, a script, or curl. The plugin must be on (default).</p>
+<pre>curl -s http://127.0.0.1:8090/v1/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"Apple Inc latest 10-Q","num_results":8}'
+
+curl -s http://127.0.0.1:8090/v1/fetch \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com"}'
+
+curl -s http://127.0.0.1:8090/v1/research \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"Apple Inc latest 10-Q","fetch_top":2}'
+
+# Prove Mode 1:
+python scripts/check_search.py --engine
+</pre>
+  <p>Search returns <span class="mono">hits</span>, <span class="mono">providers_used</span>, <span class="mono">confirmed</span> (URLs seen by more than one index). Fetch returns page text, <span class="mono">tier</span>, <span class="mono">ok</span>. Research = search then fetch the top URLs (confirmed first).</p>
+
+  <h3>Chat with search (the usual way)</h3>
+  <p>Point any DeepSeek / vLLM client at this engine instead of <span class="mono">api.deepseek.com</span>. Base URL <span class="mono">http://127.0.0.1:8090/v1</span>. API key <span class="mono">local</span> if you left <span class="mono">ENGINE_API_KEY</span> empty. Model <span class="mono">deepseek-v4-flash</span>.</p>
+<pre>from openai import OpenAI
+client = OpenAI(base_url="http://127.0.0.1:8090/v1", api_key="local")
+r = client.chat.completions.create(
+    model="deepseek-v4-flash",
+    messages=[{"role": "user", "content": "What was Apple last reported quarterly revenue? Cite a live URL."}],
+)
+print(r.choices[0].message.content)
+print(r.model_extra.get("phoenician_tool_trace"))   # or r.to_dict()
+</pre>
+  <p>The snippet above uses the common Python chat client (<span class="mono">openai</span> package) only as an HTTP helper — the model is still Flash. DeepSeek SDK: same messages, <span class="mono">base_url="http://127.0.0.1:8090"</span> (no <span class="mono">/v1</span>). Cursor / Continue: custom host <span class="mono">http://127.0.0.1:8090/v1</span>, model <span class="mono">deepseek-v4-flash</span>.</p>
+  <p>Optional extra on the JSON body (the engine strips it before Flash sees it):</p>
+<pre>{
+  "phoenician_web": {
+    "policy": "auto"
+  }
+}</pre>
+  <table>
+    <thead><tr><th>policy</th><th>When to use it</th></tr></thead>
+    <tbody>
+      <tr><td><span class="mono">auto</span> (default)</td><td>Flash decides. “What is 2+2?” stays offline. A dated company question searches.</td></tr>
+      <tr><td><span class="mono">required</span></td><td>Research desks. Must complete a successful search, or HTTP 424.</td></tr>
+      <tr><td><span class="mono">off</span></td><td>This request only — no tools. Needed for <span class="mono">stream: true</span>.</td></tr>
+    </tbody>
+  </table>
+  <p>If the reply JSON includes <span class="mono">phoenician_tool_trace</span>, Flash searched or fetched. <span class="mono">phoenician_sources</span> lists the URLs. Treat a tool result that starts with <span class="mono">ERROR:</span> as a hard failure — do not treat it as a fact.</p>
+  <p>Turn the internet off for everyone at <span class="mono">/ui</span> or <span class="mono">POST /v1/plugin {"enabled": false}</span>. Chat then becomes a plain pass-through to Flash. One request can turn it off with header <span class="mono">X-Phoenician-Plugin: off</span>.</p>
+
+  <h3>Smoke test and the §4 prompt</h3>
+<pre>python scripts/smoke.py
+
 curl -s http://127.0.0.1:8090/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
@@ -221,8 +294,7 @@ curl -s http://127.0.0.1:8090/v1/chat/completions \
     "phoenician_web": {"policy": "required"}
   }'
 </pre>
-  <p>Look for <span class="mono">phoenician_tool_trace</span> (web_search / fetch_url) and <span class="mono">phoenician_sources</span> with real http URLs. Toggle: http://127.0.0.1:8090/ui · OpenAPI: http://127.0.0.1:8090/docs.</p>
-  <p class="note">This paper is the live run. The long internals manual (every file under engine/) is Local-LLM-Internet-Engine-Method.pdf. Neither document contains API keys.</p>
+  <p>Smoke needs the engine and Flash (API or local Brain). It asks a dated Apple-revenue question with <span class="mono">policy: required</span>, then “2+2” with <span class="mono">policy: off</span>. Pass = a real URL in the sources, and no tools on the math question. In the curl reply, look for <span class="mono">phoenician_tool_trace</span> and <span class="mono">phoenician_sources</span>. Full file map of the repo: Local-LLM-Internet-Engine-Method.pdf. Neither PDF contains API keys.</p>
 </section>
 
 </body>
